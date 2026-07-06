@@ -3,6 +3,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './pages/AppShell/AppShell';
 import { Landing } from './pages/Landing/Landing';
 import { Track } from './pages/Track/Track';
+import { Login } from './pages/Auth/Login';
+import { Signup } from './pages/Auth/Signup';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 /**
  * App.jsx — the router.
@@ -23,14 +26,27 @@ import { Track } from './pages/Track/Track';
  */
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Landing />} />
-      <Route path="/app" element={<Navigate to="/app/sos" replace />} />
-      <Route path="/app/:tab" element={<AppShell />} />
-      <Route path="/track/:sessionId" element={<Track />} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/app" element={<ProtectedRoute><Navigate to="/app/sos" replace /></ProtectedRoute>} />
+        <Route path="/app/:tab" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
+        <Route path="/track/:sessionId" element={<Track />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </AuthProvider>
   );
+}
+
+function ProtectedRoute({ children }) {
+  const { user, isLoading } = useAuth();
+  
+  if (isLoading) return <div className="flex-center" style={{ minHeight: '100dvh' }}>Loading...</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  
+  return children;
 }
 
 function NotFound() {

@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ShieldAlert, Share2, MapPin, WifiOff, AlertCircle, Check } from 'lucide-react';
-import mapboxgl from 'mapbox-gl';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { isFirebaseReady, subscribeToLocation } from '../../features/tracking/firebaseClient';
 import './track.css';
 
@@ -168,109 +169,57 @@ function TrackingMap({ location, isOnline }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
-  const animRef = useRef(null);
-  const isReadyRef = useRef(false);
-  const [isReady, setIsReady] = useState(false);
-  const [error, setError] = useState(null);
-
-  const token = import.meta.env.VITE_MAPBOX_TOKEN;
-  const tokenMissing = !token || token.startsWith('pk.your_');
 
   // Initialize the map
   useEffect(() => {
-    if (tokenMissing) {
-      setError('Add VITE_MAPBOX_TOKEN to your .env.local to enable the live map.');
-      return;
-    }
-    if (!containerRef.current) return;
+    if (!containerRef.current || mapRef.current) return;
 
-    mapboxgl.accessToken = token;
-    try {
-      const map = new mapboxgl.Map({
-        container: containerRef.current,
-        style: 'mapbox://styles/mapbox/dark-v11',
-        center: location ? [location.lng, location.lat] : [91.7832, 22.3569],
-        zoom: location ? 15 : 12,
-        attributionControl: true,
-      });
-      mapRef.current = map;
-      map.on('load', () => {
-        isReadyRef.current = true;
-        setIsReady(true);
-      });
-      map.on('error', (e) => {
-        // eslint-disable-next-line no-console
-        console.warn('[mapbox]', e?.error?.message || e);
-      });
+    const map = L.map(containerRef.current, { zoomControl: false }).setView(
+      location ? [location.lat, location.lng] : [22.3569, 91.8033], 
+      location ? 15 : 12
+    );
 
-      const ro = new ResizeObserver(() => map.resize());
-      ro.observe(containerRef.current);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+      maxZoom: 19,
+    }).addTo(map);
 
-      return () => {
-        ro.disconnect();
-        cancelAnimationFrame(animRef.current);
-        markerRef.current = null;
-        mapRef.current?.remove();
+    mapRef.current = map;
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
         mapRef.current = null;
-        isReadyRef.current = false;
-        setIsReady(false);
-      };
-    } catch (err) {
-      setError(err?.message || 'Failed to initialize Mapbox');
-    }
-    // We intentionally do not depend on `location` here — we only want to init once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tokenMissing]);
+      }
+    };
+  }, []);
 
   // Animate marker to new positions
   useEffect(() => {
-    if (!isReady || !location || !mapRef.current) return;
+    if (!location || !mapRef.current) return;
 
+    const map = mapRef.current;
+    
     if (!markerRef.current) {
-      const el = document.createElement('div');
-      el.className = 'track__marker' + (isOnline ? '' : ' track__marker--offline');
-      el.innerHTML = `
-        <div class="track__marker-pin"></div>
-        <div class="track__marker-dot"></div>
-      `;
-      markerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-        .setLngLat([location.lng, location.lat])
-        .addTo(mapRef.current);
-      mapRef.current.flyTo({
-        center: [location.lng, location.lat],
-        zoom: 15,
-        duration: 1500,
-        essential: true,
+      // create custom icon for marker
+      const customIcon = L.divIcon({
+        className: 'track__marker' + (isOnline ? '' : ' track__marker--offline'),
+        html: `
+          <div class="track__marker-pin" style="background:var(--color-brand); width:20px; height:20px; border-radius:50%; border:3px solid white; box-shadow:0 0 10px rgba(0,0,0,0.3)"></div>
+        `,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
       });
+
+      markerRef.current = L.marker([location.lat, location.lng], { icon: customIcon }).addTo(map);
+      map.setView([location.lat, location.lng], 15, { animate: true, duration: 1.5 });
       return;
     }
 
     // Subsequent updates: animate
-    const start = markerRef.current.getLngLat();
-    const end = { lng: location.lng, lat: location.lat };
-    const t0 = performance.now();
-    const duration = 1500;
-    cancelAnimationFrame(animRef.current);
-    const step = (now) => {
-      const t = Math.min(1, (now - t0) / duration);
-      const e = easeInOutCubic(t);
-      const lng = start.lng + (end.lng - start.lng) * e;
-      const lat = start.lat + (end.lat - start.lat) * e;
-      markerRef.current?.setLngLat([lng, lat]);
-      if (t < 1) animRef.current = requestAnimationFrame(step);
-    };
-    animRef.current = requestAnimationFrame(step);
-  }, [location, isReady, isOnline]);
-
-  if (error || tokenMissing) {
-    return (
-      <div className="track__state">
-        <div className="track__state-icon"><AlertCircle size={28} /></div>
-        <h1 className="track__state-title">Map preview unavailable</h1>
-        <p className="track__state-text">{error || 'Add VITE_MAPBOX_TOKEN to your .env.local to enable the live map.'}</p>
-      </div>
-    );
-  }
+    markerRef.current.setLatLng([location.lat, location.lng]);
+    map.setView([location.lat, location.lng], 15, { animate: true, duration: 1.5 });
+  }, [location, isOnline]);
 
   return (
     <div
@@ -278,6 +227,7 @@ function TrackingMap({ location, isOnline }) {
       className="track__map"
       role="region"
       aria-label="Live location map"
+      style={{ height: '300px', width: '100%' }}
     />
   );
 }

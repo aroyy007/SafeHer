@@ -1,7 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Inter+Tight:wght@500;600;700;800&family=Noto+Sans+Bengali:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import './theme.css';
 @import './components.css';
-@import 'mapbox-gl/dist/mapbox-gl.css';
 
 *, *::before, *::after {
   box-sizing: border-box;

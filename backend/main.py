@@ -29,6 +29,7 @@ from routers.incidents import router as incident_router
 from routers.sos import router as sos_router
 from routers.geocode import router as geocode_router
 from routers.circles import router as circles_router
+from routers.auth import router as auth_router
 from routers.health import health_router, heatmap_router
 
 # Configure logging
@@ -121,6 +122,7 @@ app.include_router(incident_router)
 app.include_router(sos_router)
 app.include_router(geocode_router)
 app.include_router(circles_router)
+app.include_router(auth_router)
 app.include_router(health_router)
 app.include_router(heatmap_router)
 

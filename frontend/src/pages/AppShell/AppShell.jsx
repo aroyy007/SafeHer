@@ -118,23 +118,82 @@ function NavItem({ to, label, icon }) {
   );
 }
 
-/**
- * YouTab — placeholder for the settings/trusted-circle/onboarding screens.
- * Out of scope for this iteration but wired in to keep nav consistent.
- */
+import { useAuth } from '../../contexts/AuthContext';
+import { LogOut, Trash2, Plus } from 'lucide-react';
+
 function YouTab() {
+  const { user, contacts, logout, addContact, deleteContact } = useAuth();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newContact, setNewContact] = useState({ name: '', phone: '', email: '', relation: 'Friend' });
+
+  const handleAddContact = async (e) => {
+    e.preventDefault();
+    await addContact(newContact);
+    setShowAddForm(false);
+    setNewContact({ name: '', phone: '', email: '', relation: 'Friend' });
+  };
+
   return (
     <div className="animate-fade-in" style={{ padding: 'var(--space-6)', overflowY: 'auto', height: '100%' }}>
-      <h2 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: 'var(--space-2)' }}>You</h2>
-      <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginBottom: 'var(--space-6)' }}>
-        Settings, trusted contacts, and preferences live here.
-      </p>
-      <div className="card" style={{ padding: 'var(--space-4)' }}>
-        <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-          The You tab is being built. For now, your trusted contacts and preferences are
-          read from your local browser only.
-        </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Profile</h2>
+        <button onClick={logout} className="btn btn-ghost" style={{ color: 'var(--color-danger)', fontSize: '0.875rem' }}>
+          <LogOut size={16} /> Logout
+        </button>
       </div>
+
+      {user && (
+        <div className="glass-panel" style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+          <h3 style={{ fontSize: '1.125rem', marginBottom: '0.5rem' }}>{user.name}</h3>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>{user.email}</p>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>{user.phone}</p>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+        <h3 style={{ fontSize: '1.125rem', fontWeight: 600 }}>Emergency Contacts</h3>
+        {!showAddForm && (
+          <button onClick={() => setShowAddForm(true)} className="btn btn-primary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem' }}>
+            <Plus size={14} /> Add
+          </button>
+        )}
+      </div>
+
+      {showAddForm && (
+        <form onSubmit={handleAddContact} className="glass-panel" style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
+          <h4 style={{ fontSize: '0.875rem', marginBottom: '0.5rem' }}>New Contact</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <input required placeholder="Name" className="input-field" value={newContact.name} onChange={e => setNewContact({...newContact, name: e.target.value})} />
+            <input required placeholder="Phone" type="tel" className="input-field" value={newContact.phone} onChange={e => setNewContact({...newContact, phone: e.target.value})} />
+            <input placeholder="Email (optional)" type="email" className="input-field" value={newContact.email} onChange={e => setNewContact({...newContact, email: e.target.value})} />
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <button type="submit" className="btn btn-primary" style={{ flex: 1, padding: '0.5rem' }}>Save</button>
+              <button type="button" onClick={() => setShowAddForm(false)} className="btn btn-ghost" style={{ flex: 1, padding: '0.5rem' }}>Cancel</button>
+            </div>
+          </div>
+        </form>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        {contacts.length === 0 && !showAddForm ? (
+          <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>No emergency contacts added yet.</p>
+        ) : (
+          contacts.map(c => (
+            <div key={c.id} className="glass-panel" style={{ padding: 'var(--space-4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <p style={{ fontWeight: 500 }}>{c.name}</p>
+                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{c.phone}</p>
+              </div>
+              <button onClick={() => deleteContact(c.id)} style={{ color: 'var(--color-danger)', padding: '0.5rem' }}>
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+      <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 'var(--space-6)', textAlign: 'center' }}>
+        These contacts will be automatically notified when you activate SOS.
+      </p>
     </div>
   );
 }

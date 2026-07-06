@@ -9,6 +9,7 @@ import aiosqlite
 import json
 import logging
 from datetime import datetime
+from typing import Optional
 
 from routing.safety_scorer import haversine_distance
 
@@ -20,6 +21,28 @@ DB_PATH = "data/safeher_local.db"
 async def init_db():
     """Initialize the SQLite tables."""
     async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                phone TEXT,
+                password_hash TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS emergency_contacts (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                phone TEXT NOT NULL,
+                email TEXT,
+                relation TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS incidents (
                 id TEXT PRIMARY KEY,
@@ -148,7 +171,7 @@ async def list_circles_for_owner(owner_id: str) -> list:
         return [dict(r) for r in rows]
 
 
-async def get_circle_with_members(circle_id: str, owner_id: str) -> dict | None:
+async def get_circle_with_members(circle_id: str, owner_id: str) -> Optional[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         c = await (

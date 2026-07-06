@@ -54,7 +54,10 @@ export const api = {
   health: () => request('/health'),
 
   chat: (query) =>
-    request(`/chat?query=${encodeURIComponent(query)}`),
+    request('/chat/', {
+      method: 'POST',
+      body: JSON.stringify({ query }),
+    }),
 
   /**
    * Route between two coordinates.
@@ -122,4 +125,13 @@ export const api = {
         headers: sessionHeaders(),
       }),
   },
+
+  // ----- Auth & Contacts -----
+  auth: {
+    login: (credentials) => request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
+    signup: (data) => request('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
+    getMe: (token) => request('/auth/me', { headers: { Authorization: `Bearer ${token}` } }),
+    addContact: (token, contact) => request('/auth/contacts', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(contact) }),
+    deleteContact: (token, id) => request(`/auth/contacts/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }),
+  }
 };
