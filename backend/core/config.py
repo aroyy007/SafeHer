@@ -1,0 +1,94 @@
+"""
+SafeHer Backend — Configuration
+================================
+Loads all settings from .env via Pydantic Settings.
+Feature flags allow running without Supabase/Firebase for local development.
+"""
+
+from functools import lru_cache
+from pydantic_settings import BaseSettings
+from pydantic import Field
+import os
+
+
+class Settings(BaseSettings):
+    """
+    All configuration loaded from environment variables.
+    Defaults are set for local development — override in .env or Render dashboard.
+    """
+
+    # --- API Keys ---
+    GEMINI_API_KEY: str = Field(default="", description="Gemini API key for LLM inference")
+    GROQ_API_KEY: str = Field(default="", description="Groq API key for LLM inference (llama / gpt-oss)")
+    HUGGINGFACE_API_KEY: str = Field(default="", description="HuggingFace API key for model downloads")
+    LLM_PROVIDER: str = Field(
+        default="gemini",
+        description="Which LLM to use: 'gemini' or 'groq'. Gemini wins by default.",
+    )
+
+    # --- Supabase ---
+    USE_SUPABASE: bool = Field(default=False, description="Enable Supabase for incident storage")
+    SUPABASE_URL: str = Field(default="", description="Supabase project URL")
+    SUPABASE_KEY: str = Field(default="", description="Supabase service role key")
+
+    # --- Firebase ---
+    USE_FIREBASE: bool = Field(default=False, description="Enable Firebase for SOS tracking")
+    FIREBASE_CREDENTIALS_BASE64: str = Field(default="", description="Base64 encoded Firebase service account JSON")
+
+    # --- Server ---
+    HOST: str = Field(default="0.0.0.0")
+    PORT: int = Field(default=8000)
+    DEBUG: bool = Field(default=True)
+
+    # --- CORS ---
+    # Comma-separated list of allowed origins. Empty / "*" falls back
+    # to the dev defaults in main.py._build_allowed_origins().
+    ALLOWED_ORIGINS: str = Field(
+        default="",
+        description="Comma-separated CORS allow-list (e.g. 'https://safeher.app,https://staging.safeher.app')",
+    )
+
+    # --- Feature Flags ---
+    ENABLE_BENGALI_EMBEDDER: bool = Field(
+        default=True,
+        description="Use l3cube Bengali SBERT. Set False to fall back to all-MiniLM-L6-v2"
+    )
+    GRAPH_PATH: str = Field(
+        default="data/chittagong_walk.graphml",
+        description="Path to precomputed graph file"
+    )
+    CHROMA_PATH: str = Field(
+        default="./chroma_store",
+        description="Path to ChromaDB persistent storage"
+    )
+
+    # --- Rate Limits ---
+    MAX_INCIDENTS_PER_HOUR: int = Field(default=10, description="Max incident reports per session per hour")
+    MAX_CHAT_QUERY_LENGTH: int = Field(default=1000, description="Max characters in a chat query")
+    MAX_NEARBY_RADIUS_M: int = Field(default=5000, description="Max radius for nearby incident queries")
+
+    # --- Bangladesh Bounding Box ---
+    BD_LAT_MIN: float = Field(default=20.5)
+    BD_LAT_MAX: float = Field(default=26.7)
+    BD_LNG_MIN: float = Field(default=88.0)
+    BD_LNG_MAX: float = Field(default=92.7)
+
+    # --- Chittagong Center (for defaults) ---
+    CTG_CENTER_LAT: float = Field(default=22.3569)
+    CTG_CENTER_LNG: float = Field(default=91.7832)
+
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": True,
+        "extra": "ignore",
+    }
+
+
+@lru_cache()
+def get_settings() -> Settings:
+    """
+    Singleton settings instance. Cached after first call.
+    The lru_cache ensures .env is read only once.
+    """
+    return Settings()

@@ -1,0 +1,340 @@
+/* Public tracking page — read-only map with live marker + emergency actions */
+
+.track {
+  position: relative;
+  height: 100dvh;
+  width: 100vw;
+  background: var(--color-bg-primary);
+  overflow: hidden;
+  color: var(--color-text-primary);
+}
+
+.track__map {
+  position: absolute;
+  inset: 0;
+}
+
+.track__top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  padding-top: max(var(--space-3), env(safe-area-inset-top));
+  background: linear-gradient(180deg, rgba(11, 14, 20, 0.85), transparent);
+  pointer-events: none;
+}
+
+.track__top > * { pointer-events: auto; }
+
+.track__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border-light);
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.track__brand-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--color-brand) 0%, #FF8FA3 100%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.track__share {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border-light);
+  color: var(--color-text-primary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.track__share:hover {
+  background: rgba(28, 34, 48, 0.95);
+}
+
+/* Status banner (floating glass panel below top bar) */
+.track__status {
+  position: absolute;
+  top: calc(64px + env(safe-area-inset-top, 0px));
+  left: var(--space-4);
+  right: var(--space-4);
+  z-index: var(--z-elevated);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border-light);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+}
+
+.track__status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.track__status-dot--live {
+  background: var(--color-success);
+  box-shadow: 0 0 12px var(--color-success);
+}
+
+.track__status-dot--stale {
+  background: var(--color-warning);
+}
+
+.track__status-dot--offline {
+  background: var(--color-text-muted);
+}
+
+.track__status-dot--live::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid var(--color-success);
+  animation: pulse-marker 1.8s ease-out infinite;
+}
+
+.track__status-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.track__status-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.track__status-meta {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.track__status-meta strong {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Marker */
+.track__marker {
+  position: relative;
+  width: 24px;
+  height: 24px;
+}
+
+.track__marker-pin {
+  position: absolute;
+  inset: 0;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: linear-gradient(135deg, var(--color-brand) 0%, #d12a4a 100%);
+  box-shadow: 0 0 0 3px rgba(255, 77, 109, 0.25), 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.track__marker-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -60%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: white;
+}
+
+.track__marker--offline .track__marker-pin {
+  background: linear-gradient(135deg, var(--color-text-muted) 0%, #4b4f5a 100%);
+  box-shadow: 0 0 0 3px rgba(113, 113, 122, 0.25);
+  opacity: 0.7;
+}
+
+/* Empty / error states */
+.track__state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+  padding: var(--space-6);
+  background: var(--color-bg-primary);
+  gap: var(--space-3);
+}
+
+.track__state-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-light);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.track__state-title {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.track__state-text {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+.track__state-link {
+  margin-top: var(--space-3);
+  color: var(--color-brand);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.track__state-link:hover { text-decoration: underline; }
+
+/* Bottom sheet with emergency actions */
+.track__actions {
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  z-index: var(--z-elevated);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-border-light);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.6);
+}
+
+.track__action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform var(--transition-fast), background var(--transition-fast);
+  min-height: 56px;
+}
+
+.track__action--primary {
+  background: var(--color-danger);
+  color: white;
+}
+
+.track__action--primary:hover {
+  background: var(--color-danger-hover);
+  text-decoration: none;
+}
+
+.track__action--secondary {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-light);
+}
+
+.track__action--secondary:hover {
+  background: #252b3a;
+  text-decoration: none;
+}
+
+.track__action-num {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* Privacy hint above actions */
+.track__privacy {
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: calc(144px + max(var(--space-4), env(safe-area-inset-bottom, 0px)));
+  z-index: var(--z-elevated);
+  text-align: center;
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+/* Toast for "Link copied" */
+.track__toast {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: var(--z-toast);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-light);
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.6);
+  animation: fadeIn 200ms var(--ease-out) both;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

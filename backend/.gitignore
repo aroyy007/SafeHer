@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Data files (large, committed separately)
+# data/chittagong_walk.graphml  # Uncomment if too large for git
+
+# ChromaDB store (rebuild with precompute/build_knowledge_base.py)
+# chroma_store/  # Uncomment if you prefer rebuilding on deploy
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

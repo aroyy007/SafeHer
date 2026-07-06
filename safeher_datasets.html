@@ -1,0 +1,288 @@
+
+<style>
+h2.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.tab{padding:5px 14px;border-radius:99px;border:0.5px solid var(--border);font-size:12px;cursor:pointer;background:var(--surface-1);color:var(--text-secondary);transition:all .15s}
+.tab.on{background:var(--bg-accent);color:var(--text-accent);border-color:var(--border-accent)}
+.panel{display:none}.panel.show{display:block}
+.ds-card{background:var(--surface-1);border:0.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px}
+.ds-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.ds-name{font-size:14px;font-weight:500;color:var(--text-primary);margin:0}
+.ds-tag{font-size:11px;padding:2px 8px;border-radius:99px;white-space:nowrap;flex-shrink:0}
+.tag-primary{background:var(--bg-accent);color:var(--text-accent)}
+.tag-secondary{background:var(--bg-success);color:var(--text-success)}
+.tag-model{background:var(--bg-pro);color:var(--text-pro)}
+.tag-ref{background:var(--surface-0);color:var(--text-muted);border:0.5px solid var(--border)}
+.ds-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.meta-pill{font-size:11px;color:var(--text-secondary);background:var(--surface-0);padding:2px 8px;border-radius:4px;border:0.5px solid var(--border)}
+.ds-desc{font-size:12px;color:var(--text-secondary);line-height:1.6;margin-bottom:10px}
+.ds-use{font-size:12px;color:var(--text-primary);background:var(--surface-0);border-radius:6px;padding:8px 10px;margin-bottom:10px}
+.ds-use strong{color:var(--text-secondary);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px}
+.ds-link{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text-accent);text-decoration:none;word-break:break-all}
+.ds-link:hover{text-decoration:underline}
+.step-badge{display:inline-block;width:18px;height:18px;border-radius:50%;background:var(--bg-accent);color:var(--text-accent);font-size:10px;font-weight:500;text-align:center;line-height:18px;margin-right:6px;flex-shrink:0}
+.how-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:12px;color:var(--text-secondary);line-height:1.5}
+.section-label{font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin:14px 0 8px}
+</style>
+
+<h2 class="sr-only">SafeHer complete dataset and model reference — organized by use in the project</h2>
+
+<div class="tabs" id="tabs">
+  <button class="tab on" onclick="show(0)">Crime data</button>
+  <button class="tab" onclick="show(1)">Road network</button>
+  <button class="tab" onclick="show(2)">AI models</button>
+  <button class="tab" onclick="show(3)">Safety scoring</button>
+  <button class="tab" onclick="show(4)">NLP tools</button>
+</div>
+
+<div id="p0" class="panel show">
+  <p class="section-label">Used in: route safety scorer + heatmap</p>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <p class="ds-name">CrimeDataBD — Primary dataset</p>
+      <span class="ds-tag tag-primary">Core · must use</span>
+    </div>
+    <div class="ds-meta">
+      <span class="meta-pill">6,574 crime records</span>
+      <span class="meta-pill">36 features per record</span>
+      <span class="meta-pill">CSV format</span>
+      <span class="meta-pill">CC BY 4.0</span>
+      <span class="meta-pill">Free download</span>
+    </div>
+    <p class="ds-desc">Bangladesh crime records covering Murder, Rape, Assault, Robbery, Kidnap. Includes lat/lng coordinates, victim gender, time of day, weather, population density, literacy rate, poverty rate. Built from newspaper archives + National Census + Weather API. The only ML-ready Bangladesh crime dataset with geographic coordinates.</p>
+    <div class="ds-use"><strong>How you use it</strong>Filter rows where <code>victim_gender == "female"</code>. Extract lat/lng. Fit a KDE model on those coordinates. Use the KDE density surface to score every OSM road segment — higher crime density nearby = lower safety score on that edge.</div>
+    <a class="ds-link" href="https://data.mendeley.com/datasets/d7vzpcdzcw/4" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>data.mendeley.com/datasets/d7vzpcdzcw/4</a>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <p class="ds-name">Bangladesh Police Crime Data 2010–2019</p>
+      <span class="ds-tag tag-secondary">Secondary · validation</span>
+    </div>
+    <div class="ds-meta">
+      <span class="meta-pill">10 years of records</span>
+      <span class="meta-pill">CSV per year</span>
+      <span class="meta-pill">GitHub · free</span>
+    </div>
+    <p class="ds-desc">Official Bangladesh Police crime statistics from 2010 to 2019. One CSV file per year. Covers dacoity, robbery, murder, women and child repression, kidnapping, burglary, and theft across different police units and regions.</p>
+    <div class="ds-use"><strong>How you use it</strong>Temporal validation — check whether crime patterns by time-of-day and day-of-week in CrimeDataBD match the longer historical trend. Also useful for your Model and Data Card to show multi-source validation.</div>
+    <a class="ds-link" href="https://github.com/mjtbasif/Bangladesh-Crime-Data" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>github.com/mjtbasif/Bangladesh-Crime-Data</a>
+  </div>
+</div>
+
+<div id="p1" class="panel">
+  <p class="section-label">Used in: safe route recommendation algorithm</p>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <p class="ds-name">OpenStreetMap via osmnx</p>
+      <span class="ds-tag tag-primary">Core · must use</span>
+    </div>
+    <div class="ds-meta">
+      <span class="meta-pill">Full walk network</span>
+      <span class="meta-pill">Python library</span>
+      <span class="meta-pill">ODbL license</span>
+      <span class="meta-pill">Free API</span>
+    </div>
+    <p class="ds-desc">The entire walkable road network of Chittagong including road type (highway tag), street lighting (lit=yes/no), surface type, and road names. Accessed via the osmnx Python library which calls the Overpass API and returns a NetworkX graph directly usable for A* pathfinding.</p>
+    <div class="ds-use">
+      <strong>How you use it</strong>
+      <div class="how-row"><span class="step-badge">1</span>Run <code>ox.graph_from_place("Chittagong, Bangladesh", network_type="walk")</code> — once, locally.</div>
+      <div class="how-row"><span class="step-badge">2</span>Read <code>data.get("lit")</code> on each edge for lighting score.</div>
+      <div class="how-row"><span class="step-badge">3</span>Read <code>data.get("highway")</code> for road type score.</div>
+      <div class="how-row"><span class="step-badge">4</span>Save as <code>chittagong_walk.graphml</code>. Commit to repo. Never re-download at runtime.</div>
+    </div>
+    <a class="ds-link" href="https://github.com/gboeing/osmnx" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>github.com/gboeing/osmnx · pip install osmnx</a>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <p class="ds-name">Geofabrik Bangladesh OSM extract</p>
+      <span class="ds-tag tag-secondary">Alternative · offline use</span>
+    </div>
+    <div class="ds-meta">
+      <span class="meta-pill">PBF format</span>
+      <span class="meta-pill">Full country extract</span>
+      <span class="meta-pill">Updated daily</span>
+      <span class="meta-pill">Free download</span>
+    </div>
+    <p class="ds-desc">Full Bangladesh OSM data as a PBF file, updated daily. Use this if osmnx's Overpass API calls are slow or rate-limited in your area. Can be read with pyrosm instead of osmnx for offline processing of large areas.</p>
+    <div class="ds-use"><strong>How you use it</strong>Only needed if you want to process the entire Bangladesh road network offline, or if Overpass API times out for Chittagong. For the hackathon, osmnx is simpler.</div>
+    <a class="ds-link" href="https://download.geofabrik.de/asia/bangladesh.html" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>download.geofabrik.de/asia/bangladesh.html</a>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <p class="ds-name">Overpass API (live OSM queries)</p>
+      <span class="ds-tag tag-ref">Reference · optional</span>
+    </div>
+    <div class="ds-meta">
+      <span class="meta-pill">REST API</span>
+      <span class="meta-pill">Real-time OSM data</span>
+      <span class="meta-pill">Free</span>
+    </div>
+    <p class="ds-desc">Query any OSM tag live — police stations, hospitals, mosques, pharmacies near a coordinate. Useful for the SOS screen ("nearest police station to you") and the safe locations guidance in the chatbot.</p>
+    <div class="ds-use"><strong>How you use it</strong>Query: <code>node["amenity"="police"](near:1000,22.3569,91.8325)</code> at <code>overpass-api.de/api/interpreter</code> to find police stations within 1km of Chittagong center.</div>
+    <a class="ds-link" href="https://overpass-turbo.eu" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>overpass-turbo.eu (interactive query builder)</a>
+  </div>
+</div>
+
+<div id="p2" class="panel">
+  <p class="section-label">Used in: chatbot generation + RAG embeddings</p>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <p class="ds-name">Groq — llama-3.3-70b-versatile</p>
+      <span class="ds-tag tag-primary">Core · chatbot LLM</span>
+    </div>
+    <div class="ds-meta">
+      <span class="meta-pill">Free tier</span>
+      <span class="meta-pill">~200–400 tok/s</span>
+      <span class="meta-pill">Bengali capable</span>
+      <span class="meta-pill">No training needed</span>
+    </div>
+    <p class="ds-desc">The active replacement for Llama 3.1-70b on Groq (3.1 was deprecated December 2024). Sub-second inference on the free tier. Strong Bengali comprehension at 70B scale. You call this via API — no download, no GPU, no hosting cost.</p>
+    <div class="ds-use"><strong>How you use it</strong>POST to <code>api.groq.com/openai/v1/chat/completions</code> with <code>model: "llama-3.3-70b-versatile"</code>, <code>temperature: 0.05</code>, <code>max_tokens: 150</code>. System prompt contains retrieved RAG passages. User message is the original query.</div>
+    <a class="ds-link" href="https://console.groq.com" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>console.groq.com — free API key</a>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <p class="ds-name">l3cube-pune/bengali-sentence-similarity-sbert</p>
+      <span class="ds-tag tag-primary">Core · RAG embeddings</span>
+    </div>
+    <div class="ds-meta">
+      <span class="meta-pill">~80MB RAM</span>
+      <span class="meta-pill">Sentence-level embeddings</span>
+      <span class="meta-pill">Bengali + English</span>
+      <span class="meta-pill">Free · HuggingFace</span>
+    </div>
+    <p class="ds-desc">Empirically best model for Bengali RAG retrieval (verified by Bangla-RAG/PoRAG project). SBERT-based so it produces sentence-level vectors directly — no pooling step needed. Handles code-mixed Bengali-English queries better than BanglaBERT. Fits on Render's 512MB free tier.</p>
+    <div class="ds-use"><strong>How you use it</strong><code>SentenceTransformer("l3cube-pune/bengali-sentence-similarity-sbert")</code>. Encode your knowledge base chunks once at startup. Encode every user query at request time. ChromaDB finds the closest chunks by cosine similarity.</div>
+    <a class="ds-link" href="https://huggingface.co/l3cube-pune/bengali-sentence-similarity-sbert" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>huggingface.co/l3cube-pune/bengali-sentence-similarity-sbert</a>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <p class="ds-name">csebuetnlp/banglabert (BUET NLP)</p>
+      <span class="ds-tag tag-ref">Reference · normalization only</span>
+    </div>
+    <div class="ds-meta">
+      <span class="meta-pill">ELECTRA-based</span>
+      <span class="meta-pill">27.5GB pretraining data</span>
+      <span class="meta-pill">NAACL 2022</span>
+      <span class="meta-pill">Free · HuggingFace</span>
+    </div>
+    <p class="ds-desc">You are not using BanglaBERT as an embedding model (l3cube is better for RAG). You ARE using the csebuetnlp/normalizer package that ships alongside it — a mandatory text normalization pipeline for Bengali Unicode cleaning, hasanta fixes, and punctuation normalization.</p>
+    <div class="ds-use"><strong>How you use it</strong><code>pip install git+https://github.com/csebuetnlp/normalizer</code> then <code>from normalizer import normalize</code>. Call <code>normalize(text)</code> on every Bengali string before embedding. Never embed raw Bengali without this step.</div>
+    <a class="ds-link" href="https://github.com/csebuetnlp/banglabert" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>github.com/csebuetnlp/banglabert</a>
+  </div>
+</div>
+
+<div id="p3" class="panel">
+  <p class="section-label">Used in: safety score weights + judging justification</p>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <p class="ds-name">SafetiPin 9-parameter safety audit framework</p>
+      <span class="ds-tag tag-secondary">Academic reference · cite this</span>
+    </div>
+    <div class="ds-meta">
+      <span class="meta-pill">Published: Gender & Development 2015</span>
+      <span class="meta-pill">9 safety parameters</span>
+      <span class="meta-pill">Used in 50+ cities</span>
+      <span class="meta-pill">Free to read</span>
+    </div>
+    <p class="ds-desc">The academic standard for measuring urban safety for women in South Asian cities. Nine parameters: lighting, openness, visibility, people presence, security, walk path, transportation, gender usage, incident history. Your route safety score weights (0.35 lighting, 0.40 incident, 0.25 road type) are derived from this rubric — cite it in your Model and Data Card.</p>
+    <div class="ds-use"><strong>How you use it</strong>You do not download data from SafetiPin. You cite their published methodology to justify your safety score formula. When a judge asks "why these weights?" — "based on the SafetiPin safety audit framework published in Gender and Development 2015" is a complete, credible answer.</div>
+    <a class="ds-link" href="https://doi.org/10.1080/13552074.2015.1013669" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>doi.org/10.1080/13552074.2015.1013669 — Viswanath & Basu 2015</a>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <p class="ds-name">Bangla-RAG/PoRAG</p>
+      <span class="ds-tag tag-ref">Reference · embedding model proof</span>
+    </div>
+    <div class="ds-meta">
+      <span class="meta-pill">GitHub project</span>
+      <span class="meta-pill">Bengali RAG benchmark</span>
+      <span class="meta-pill">ChromaDB + LangChain</span>
+      <span class="meta-pill">Free · open source</span>
+    </div>
+    <p class="ds-desc">The project that empirically tested sagorsarker/bangla-bert-base, csebuetnlp/banglabert, and l3cube-pune/bengali-sentence-similarity-sbert for Bengali RAG retrieval quality and found the l3cube model most effective. Your embedding model choice is based on this work — cite it.</p>
+    <div class="ds-use"><strong>How you use it</strong>Study their retrieval pipeline and ChromaDB integration. Their exact requirements (chromadb==0.5.0, sentence-transformers==3.0.1) are a safe starting point for your own requirements.txt.</div>
+    <a class="ds-link" href="https://github.com/Bangla-RAG/PoRAG" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>github.com/Bangla-RAG/PoRAG</a>
+  </div>
+</div>
+
+<div id="p4" class="panel">
+  <p class="section-label">Used in: Banglish detection + Bengali text processing</p>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <p class="ds-name">csebuetnlp/normalizer (pip package)</p>
+      <span class="ds-tag tag-primary">Core · must install</span>
+    </div>
+    <div class="ds-meta">
+      <span class="meta-pill">Python package</span>
+      <span class="meta-pill">Unicode normalization</span>
+      <span class="meta-pill">Zero RAM cost</span>
+      <span class="meta-pill">Free</span>
+    </div>
+    <p class="ds-desc">Normalizes Bengali Unicode — fixes zero-width joiners, hasanta characters, punctuation variants, and numeral inconsistencies. Required before any Bengali text reaches an embedding model. Ships as a standalone pip package separate from the BanglaBERT model weights.</p>
+    <div class="ds-use"><strong>Install:</strong> <code>pip install git+https://github.com/csebuetnlp/normalizer</code></div>
+    <a class="ds-link" href="https://github.com/csebuetnlp/normalizer" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>github.com/csebuetnlp/normalizer</a>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <p class="ds-name">shuaib128/Banglish (phonetic rules)</p>
+      <span class="ds-tag tag-secondary">Reference · transliteration rules</span>
+    </div>
+    <div class="ds-meta">
+      <span class="meta-pill">JavaScript</span>
+      <span class="meta-pill">Avro phonetic rules</span>
+      <span class="meta-pill">MIT license</span>
+      <span class="meta-pill">Free</span>
+    </div>
+    <p class="ds-desc">Chrome extension implementing Avro-style phonetic Banglish-to-Bengali transliteration. The phonetic mapping rules (which romanized sequences map to which Bengali script characters) are the reference for the transliteration table in your backend preprocessor.</p>
+    <div class="ds-use"><strong>How you use it</strong>Read the Phonetic class in this repo to understand the mapping rules. Port those rules to your Python transliterator. You do not import this library — it is JavaScript. You replicate the phonetic logic in Python.</div>
+    <a class="ds-link" href="https://github.com/shuaib128/Banglish" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>github.com/shuaib128/Banglish</a>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <p class="ds-name">Foysal87/Bangla-NLP-Dataset</p>
+      <span class="ds-tag tag-ref">Reference · dataset catalog</span>
+    </div>
+    <div class="ds-meta">
+      <span class="meta-pill">Curated list</span>
+      <span class="meta-pill">BanglishRev: 1.74M reviews</span>
+      <span class="meta-pill">Multiple datasets</span>
+      <span class="meta-pill">Free</span>
+    </div>
+    <p class="ds-desc">The most complete catalog of Bengali NLP datasets. Includes BanglishRev (1.74M Daraz e-commerce code-mixed reviews in Banglish), BanglaTLit (Banglish back-transliteration benchmark), hate speech datasets, and more. Use to find additional Banglish training examples if you want to expand your phonetic rule set.</p>
+    <div class="ds-use"><strong>How you use it</strong>Browse the dataset list to understand what Banglish looks like at scale. The BanglishRev dataset is particularly useful for seeing real-world Banglish variation patterns from Bangladeshi users.</div>
+    <a class="ds-link" href="https://github.com/Foysal87/Bangla-NLP-Dataset" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>github.com/Foysal87/Bangla-NLP-Dataset</a>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <p class="ds-name">banglakit/awesome-bangla</p>
+      <span class="ds-tag tag-ref">Reference · tools catalog</span>
+    </div>
+    <div class="ds-meta">
+      <span class="meta-pill">Curated list</span>
+      <span class="meta-pill">Tools + datasets</span>
+      <span class="meta-pill">Actively maintained</span>
+    </div>
+    <p class="ds-desc">Comprehensive collection of Bengali NLP tools, datasets, and resources. If you need a stemmer, POS tagger, or additional Bengali word embeddings beyond what is in the backend system design, this is the first place to look.</p>
+    <a class="ds-link" href="https://github.com/banglakit/awesome-bangla" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>github.com/banglakit/awesome-bangla</a>
+  </div>
+</div>
+
+<script>
+const tabs=document.querySelectorAll('.tab'),panels=document.querySelectorAll('.panel');
+function show(i){tabs.forEach((t,j)=>t.classList.toggle('on',i===j));panels.forEach((p,j)=>p.classList.toggle('show',i===j))}
+</script>

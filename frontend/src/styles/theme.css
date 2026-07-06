@@ -1,0 +1,123 @@
+:root {
+  /* Core Colors — Dusk theme (cinema black, not pure) */
+  --color-bg-primary: #0B0E14;       /* Cinema black */
+  --color-bg-secondary: #13171F;     /* Elevated surface */
+  --color-bg-tertiary: #1C2230;      /* Higher elevation */
+  --color-bg-overlay: rgba(11, 14, 20, 0.7);
+
+  /* Backwards-compatible aliases (existing code uses these names) */
+  --color-bg-elevated: var(--color-bg-secondary);
+
+  --color-text-primary: #F4F4F5;     /* Primary copy */
+  --color-text-secondary: #A1A1AA;   /* Secondary copy */
+  --color-text-muted: #71717A;       /* Helper, meta */
+
+  /* Brand & Semantic Colors — rose-coral primary (avoids the AI-default indigo trap) */
+  --color-brand: #FF4D6D;            /* Rose-coral 500 */
+  --color-brand-hover: #E63E5C;      /* Rose-coral 600 */
+  --color-brand-soft: rgba(255, 77, 109, 0.12);
+
+  /* Backwards-compatible alias for the old indigo brand */
+  --color-brand-legacy: #6366f1;
+  --color-brand-legacy-hover: #4f46e5;
+
+  --color-danger: #ef4444;           /* Red 500 */
+  --color-danger-hover: #dc2626;     /* Red 600 */
+  --color-danger-bg: rgba(239, 68, 68, 0.1);
+
+  --color-success: #22C55E;          /* Emerald 500 */
+  --color-success-bg: rgba(34, 197, 94, 0.12);
+
+  --color-warning: #F59E0B;          /* Amber 500 */
+  --color-warning-bg: rgba(245, 158, 11, 0.12);
+
+  --color-info: #7DD3FC;             /* Sky 300 */
+  --color-info-bg: rgba(125, 211, 252, 0.12);
+
+  --color-focus-ring: rgba(255, 77, 109, 0.4);
+
+  /* Borders */
+  --color-border: #1C2230;
+  --color-border-light: rgba(255, 255, 255, 0.08);
+  --color-surface-line: rgba(255, 255, 255, 0.06);
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --font-display: 'Inter Tight', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Geist Mono', 'SF Mono', Menlo, Monaco, Consolas, monospace;
+  --font-bn: 'Noto Sans Bengali', 'Hind Siliguri', 'Inter', sans-serif;
+
+  /* Spacing scale (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Shadows & Effects */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-danger: 0 0 20px rgba(239, 68, 68, 0.4);
+  --shadow-brand: 0 0 24px rgba(255, 77, 109, 0.25);
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Glassmorphism */
+  --glass-bg: rgba(19, 23, 31, 0.7);
+  --glass-bg-strong: rgba(19, 23, 31, 0.88);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(12px);
+  --glass-blur-strong: blur(20px);
+
+  /* Animations */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --transition-fast: 150ms var(--ease-out);
+  --transition-normal: 250ms var(--ease-out);
+  --transition-slow: 400ms var(--ease-out);
+  --transition-bounce: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Z-index scale */
+  --z-base: 0;
+  --z-elevated: 10;
+  --z-overlay: 20;
+  --z-modal: 40;
+  --z-toast: 100;
+}
+
+/* Base Body Styles */
+body {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}

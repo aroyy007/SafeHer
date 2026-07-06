@@ -1,0 +1,306 @@
+
+<style>
+  h2.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+  .stepper{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+  .step-btn{padding:6px 14px;border-radius:99px;border:0.5px solid var(--color-border-secondary);font-size:12px;cursor:pointer;background:var(--color-background-primary);color:var(--color-text-secondary);transition:all .15s}
+  .step-btn.active{background:var(--color-background-danger);color:var(--color-text-danger);border-color:var(--color-border-danger)}
+  .step-btn.safe{background:var(--color-background-success);color:var(--color-text-success);border-color:var(--color-border-success)}
+  .step-btn.info{background:var(--color-background-info);color:var(--color-text-info);border-color:var(--color-border-info)}
+  .step-btn.warn{background:var(--color-background-warning);color:var(--color-text-warning);border-color:var(--color-border-warning)}
+  .panel{display:none;animation:fadein .2s ease}
+  .panel.show{display:block}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .feature-card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1rem 1.25rem;margin-bottom:10px}
+  .feature-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .feature-icon{width:36px;height:36px;border-radius:var(--border-radius-md);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px}
+  .icon-red{background:var(--color-background-danger);color:var(--color-text-danger)}
+  .icon-teal{background:var(--color-background-success);color:var(--color-text-success)}
+  .icon-blue{background:var(--color-background-info);color:var(--color-text-info)}
+  .icon-amber{background:var(--color-background-warning);color:var(--color-text-warning)}
+  .icon-purple{background:#EEEDFE;color:#3C3489}
+  .icon-gray{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+  .feature-title{font-size:14px;font-weight:500;color:var(--color-text-primary);margin:0}
+  .feature-sub{font-size:12px;color:var(--color-text-secondary);margin:0}
+  .feature-body{font-size:13px;color:var(--color-text-secondary);line-height:1.65;margin-bottom:10px}
+  .step-list{list-style:none;padding:0;margin:0}
+  .step-list li{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:13px;color:var(--color-text-secondary)}
+  .step-list li:last-child{border-bottom:none}
+  .step-num{min-width:20px;height:20px;border-radius:50%;background:var(--color-background-secondary);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:var(--color-text-secondary);flex-shrink:0;margin-top:1px}
+  .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;margin-right:4px;margin-top:4px}
+  .b-tech{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+  .b-ai{background:#EEEDFE;color:#3C3489}
+  .b-free{background:var(--color-background-success);color:var(--color-text-success)}
+  .who-card{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .who-item{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 10px;font-size:12px;color:var(--color-text-secondary)}
+  .who-item strong{display:block;font-size:13px;color:var(--color-text-primary);margin-bottom:2px}
+  .nav-row{display:flex;justify-content:space-between;margin-top:14px}
+  .nav-btn{padding:6px 16px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);font-size:12px;cursor:pointer;background:var(--color-background-primary);color:var(--color-text-secondary)}
+</style>
+
+<h2 class="sr-only">SafeHer feature-by-feature explainer for teammates</h2>
+
+<div class="stepper" id="stepper">
+  <button class="step-btn active" onclick="show(0)">SOS</button>
+  <button class="step-btn" onclick="show(1)">Voice</button>
+  <button class="step-btn" onclick="show(2)">Location</button>
+  <button class="step-btn" onclick="show(3)">Safe route</button>
+  <button class="step-btn" onclick="show(4)">Safety map</button>
+  <button class="step-btn" onclick="show(5)">AI chatbot</button>
+  <button class="step-btn" onclick="show(6)">Trusted circle</button>
+  <button class="step-btn" onclick="show(7)">Disguise</button>
+</div>
+
+<div id="p0" class="panel show">
+  <div class="feature-card">
+    <div class="feature-header">
+      <div class="feature-icon icon-red"><i class="ti ti-alert-triangle" aria-hidden="true"></i></div>
+      <div><p class="feature-title">SOS emergency button</p><p class="feature-sub">The most important feature — must always be one tap away</p></div>
+    </div>
+    <p class="feature-body">Imagine a woman walking home at night feeling unsafe. She opens SafeHer and sees one big red button. She presses and holds it for 3 seconds. That's it. The app does everything else automatically.</p>
+    <ul class="step-list">
+      <li><span class="step-num">1</span>User holds the big red SOS button for 3 seconds (prevents accidental presses)</li>
+      <li><span class="step-num">2</span>Phone vibrates to confirm — screen turns full red</li>
+      <li><span class="step-num">3</span>Her GPS location is captured instantly via the browser Geolocation API</li>
+      <li><span class="step-num">4</span>An emergency email fires to ALL trusted contacts: "Nadia needs help. Live location: [link]. Time: 10:34 PM"</li>
+      <li><span class="step-num">5</span>Her location link goes live on Firebase — contacts can track her in real time</li>
+      <li><span class="step-num">6</span>Screen collapses to ONLY: contact list (who was notified), cancel button, emergency numbers (999, 10921)</li>
+      <li><span class="step-num">7</span>Nothing else — no menus, no navigation, no distractions</li>
+    </ul>
+    <div style="margin-top:10px">
+      <span class="badge b-tech">Geolocation API</span>
+      <span class="badge b-tech">Firebase RTDB</span>
+      <span class="badge b-tech">EmailJS</span>
+      <span class="badge b-tech">Vibration API</span>
+      <span class="badge b-free">100% free</span>
+    </div>
+  </div>
+  <div class="who-card">
+    <div class="who-item"><strong>Who builds this</strong>Frontend dev — React state machine for SOS active/inactive modes</div>
+    <div class="who-item"><strong>Key rule</strong>3-second hold. No confirm dialog. Never more than 1 tap to reach the button</div>
+  </div>
+</div>
+
+<div id="p1" class="panel">
+  <div class="feature-card">
+    <div class="feature-header">
+      <div class="feature-icon icon-red"><i class="ti ti-microphone" aria-hidden="true"></i></div>
+      <div><p class="feature-title">Voice-activated SOS</p><p class="feature-sub">Hands-free emergency — the feature no existing app has in Bengali</p></div>
+    </div>
+    <p class="feature-body">Imagine the user's phone is in her bag. She can't safely take it out. She quietly says "বাঁচাও" (save me) — and SafeHer activates emergency mode automatically. No touching the phone required.</p>
+    <ul class="step-list">
+      <li><span class="step-num">1</span>When the user opens SafeHer, the microphone starts listening silently in the background</li>
+      <li><span class="step-num">2</span>The browser's built-in speech engine (Web Speech API) converts speech to text continuously</li>
+      <li><span class="step-num">3</span>Our code checks if the transcript contains any trigger phrase: "help", "bachao", "বাঁচাও", "emergency", "amake bachao"</li>
+      <li><span class="step-num">4</span>If a trigger is detected — same result as pressing the SOS button</li>
+      <li><span class="step-num">5</span>If the mic disconnects (tab switch, browser pause) — it auto-restarts after 1.5 seconds</li>
+    </ul>
+    <div style="margin-top:10px">
+      <span class="badge b-tech">Web Speech API</span>
+      <span class="badge b-tech">bn-BD locale</span>
+      <span class="badge b-ai">Zero ML needed</span>
+      <span class="badge b-free">No cost</span>
+    </div>
+  </div>
+  <div class="who-card">
+    <div class="who-item"><strong>Who builds this</strong>Frontend dev — ~40 lines of JavaScript, runs on page load</div>
+    <div class="who-item"><strong>Demo moment</strong>During presentation: say "বাঁচাও" out loud. SOS fires. No judge will forget this.</div>
+  </div>
+</div>
+
+<div id="p2" class="panel">
+  <div class="feature-card">
+    <div class="feature-header">
+      <div class="feature-icon icon-teal"><i class="ti ti-map-pin" aria-hidden="true"></i></div>
+      <div><p class="feature-title">Live location sharing</p><p class="feature-sub">Family can watch her move in real time — no app needed on their end</p></div>
+    </div>
+    <p class="feature-body">Think of it like a live Google Maps link, but it updates every few seconds and the family doesn't need to install anything. Just open a link in any browser.</p>
+    <ul class="step-list">
+      <li><span class="step-num">1</span>User taps "Share my location" — app generates a unique link like safeher.app/track/abc123</li>
+      <li><span class="step-num">2</span>She sends this link to her family on WhatsApp</li>
+      <li><span class="step-num">3</span>Her GPS position updates to Firebase every 5 seconds</li>
+      <li><span class="step-num">4</span>Anyone with the link opens it and sees her live dot on a map</li>
+      <li><span class="step-num">5">Optional: she sets a 30-minute timer — "I'll be home in 30 min"</span></li>
+      <li><span class="step-num">6</span>If 30 minutes pass and she hasn't checked in, contacts get an auto email alert</li>
+    </ul>
+    <div style="margin-top:10px">
+      <span class="badge b-tech">Firebase RTDB</span>
+      <span class="badge b-tech">Mapbox GL JS</span>
+      <span class="badge b-tech">Geolocation API</span>
+      <span class="badge b-free">Free tier</span>
+    </div>
+  </div>
+  <div class="who-card">
+    <div class="who-item"><strong>Who builds this</strong>Frontend dev (tracking page) + Firebase setup</div>
+    <div class="who-item"><strong>Key insight</strong>The family doesn't need the app. Just a browser link. This is the killer UX advantage.</div>
+  </div>
+</div>
+
+<div id="p3" class="panel">
+  <div class="feature-card">
+    <div class="feature-header">
+      <div class="feature-icon icon-blue"><i class="ti ti-route" aria-hidden="true"></i></div>
+      <div><p class="feature-title">Safe route recommendation</p><p class="feature-sub">The AI X-factor — built on real Bangladesh crime data</p></div>
+    </div>
+    <p class="feature-body">Google Maps shows you the fastest route. SafeHer shows you the safest one. It avoids dark streets, areas with past harassment reports, and unlit alleys — even if that means walking 3 minutes longer.</p>
+    <ul class="step-list">
+      <li><span class="step-num">1</span>User types: "From GEC Circle to Chittagong Medical College"</li>
+      <li><span class="step-num">2</span>Our backend has pre-loaded the entire Chittagong walking map (from OpenStreetMap)</li>
+      <li><span class="step-num">3</span>Every road segment has a safety score based on: street lighting (OSM data), past incidents (CrimeDataBD — 6,574 real Bangladesh crime records), road type (footways are safer than trunk roads)</li>
+      <li><span class="step-num">4</span>Our modified A* algorithm finds the route with the highest total safety score</li>
+      <li><span class="step-num">5</span>Map shows TWO routes: safe route in teal (thicker), fast route in amber (thinner)</li>
+      <li><span class="step-num">6</span>User can toggle between them and see why one is safer</li>
+    </ul>
+    <div style="margin-top:10px">
+      <span class="badge b-ai">AI / ML — core feature</span>
+      <span class="badge b-tech">FastAPI (Python)</span>
+      <span class="badge b-tech">NetworkX A*</span>
+      <span class="badge b-tech">osmnx</span>
+      <span class="badge b-tech">CrimeDataBD</span>
+    </div>
+  </div>
+  <div class="who-card">
+    <div class="who-item"><strong>Who builds this</strong>Backend dev — Python script pre-computes graph, FastAPI serves routes</div>
+    <div class="who-item"><strong>Critical rule</strong>Pre-compute the graph LOCALLY. Never download the map during a live demo — it takes 4 minutes and will crash.</div>
+  </div>
+</div>
+
+<div id="p4" class="panel">
+  <div class="feature-card">
+    <div class="feature-header">
+      <div class="feature-icon icon-amber"><i class="ti ti-map" aria-hidden="true"></i></div>
+      <div><p class="feature-title">Community safety map</p><p class="feature-sub">Women report unsafe spots — the map learns and warns others</p></div>
+    </div>
+    <p class="feature-body">Imagine a neighborhood where 5 women have reported harassment near a particular bus stop after 8 PM. SafeHer shows that area as red on the map — so the next woman traveling that route is warned before she gets there.</p>
+    <ul class="step-list">
+      <li><span class="step-num">1</span>User taps any point on the map to drop a pin</li>
+      <li><span class="step-num">2</span>A form pops up: category (eve teasing / stalking / unsafe lighting / assault / other), description, time of day</li>
+      <li><span class="step-num">3</span>Her report saves to Supabase database with her GPS coordinates</li>
+      <li><span class="step-num">4</span>Map immediately shows colored dots: red = assault/rape area, amber = harassment zone, green = reported safe</li>
+      <li><span class="step-num">5</span>When many reports cluster in one area, Mapbox shows a heatmap bubble (darker = more dangerous)</li>
+      <li><span class="step-num">6</span>These reports ALSO feed into the safe route algorithm — reported areas raise safety_cost for nearby roads</li>
+    </ul>
+    <div style="margin-top:10px">
+      <span class="badge b-tech">Supabase + PostGIS</span>
+      <span class="badge b-tech">Mapbox GL JS</span>
+      <span class="badge b-ai">KDE heatmap</span>
+      <span class="badge b-free">Free tier</span>
+    </div>
+  </div>
+  <div class="who-card">
+    <div class="who-item"><strong>Who builds this</strong>Full-stack — Supabase schema + Mapbox circle layer</div>
+    <div class="who-item"><strong>Demo tip</strong>Seed 50 incidents in Chittagong before demo day. Empty maps look broken.</div>
+  </div>
+</div>
+
+<div id="p5" class="panel">
+  <div class="feature-card">
+    <div class="feature-header">
+      <div class="feature-icon icon-purple"><i class="ti ti-message-circle" aria-hidden="true"></i></div>
+      <div><p class="feature-title">AI safety assistant (RAG chatbot)</p><p class="feature-sub">Answers emergency questions — never makes up phone numbers</p></div>
+    </div>
+    <p class="feature-body">A user types "I'm being followed, what do I do?" and gets a calm, specific 3-sentence answer in Bengali or English. It only answers from our verified database — it cannot hallucinate a wrong emergency number.</p>
+    <ul class="step-list">
+      <li><span class="step-num">1</span>User types a question in the chat (Bengali or English)</li>
+      <li><span class="step-num">2</span>Our system searches our ChromaDB database of 30+ verified facts (emergency numbers, laws, guidance)</li>
+      <li><span class="step-num">3</span>The 3 most relevant facts are retrieved and sent to Groq (Llama 3.1 70B AI model)</li>
+      <li><span class="step-num">4</span>The AI is strictly told: "Only answer from these facts. If you don't know, say call 999."</li>
+      <li><span class="step-num">5</span>Response appears in under 1 second — maximum 3 sentences</li>
+      <li><span class="step-num">6</span>If user types in Bengali — it responds in Bengali</li>
+    </ul>
+    <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px;margin:8px 0;font-size:12px;color:var(--color-text-secondary)">
+      Example: User types "কেউ আমাকে অনুসরণ করছে" (someone is following me)<br>
+      Bot responds: "এখনই ৯৯৯ কল করুন। কাছের মসজিদ, ফার্মেসি বা ব্যস্ত দোকানে ঢুকুন। বাড়ির দিকে যাবেন না।"
+    </div>
+    <div style="margin-top:6px">
+      <span class="badge b-ai">RAG pipeline</span>
+      <span class="badge b-tech">Groq Llama 3.1 70B</span>
+      <span class="badge b-tech">ChromaDB</span>
+      <span class="badge b-free">Free tier</span>
+    </div>
+  </div>
+  <div class="who-card">
+    <div class="who-item"><strong>Who builds this</strong>Backend dev — ChromaDB seeding + Groq API + FastAPI endpoint</div>
+    <div class="who-item"><strong>Why RAG matters</strong>Without RAG, the AI can invent wrong phone numbers. With RAG, it only speaks from verified facts.</div>
+  </div>
+</div>
+
+<div id="p6" class="panel">
+  <div class="feature-card">
+    <div class="feature-header">
+      <div class="feature-icon icon-teal"><i class="ti ti-users" aria-hidden="true"></i></div>
+      <div><p class="feature-title">Trusted circle</p><p class="feature-sub">Her private safety network — parents, siblings, close friends</p></div>
+    </div>
+    <p class="feature-body">Before using SafeHer, the user adds 3-5 trusted people. When anything bad happens, these people get notified instantly. They can see her location live without having to call her and potentially put her in danger.</p>
+    <ul class="step-list">
+      <li><span class="step-num">1</span>User goes to Settings → adds contacts: name + email (or phone for future SMS)</li>
+      <li><span class="step-num">2</span>Contacts are stored in Supabase under her account</li>
+      <li><span class="step-num">3</span>When SOS fires — ALL contacts get email automatically via EmailJS</li>
+      <li><span class="step-num">4</span>Email contains: her name, timestamp, a live tracking link, emergency numbers</li>
+      <li><span class="step-num">5</span>On the SOS active screen — she sees all contacts listed with a green "NOTIFIED" badge</li>
+      <li><span class="step-num">6</span>Contacts can open the tracking link on any browser — no app needed</li>
+    </ul>
+    <div style="margin-top:10px">
+      <span class="badge b-tech">Supabase Auth</span>
+      <span class="badge b-tech">EmailJS</span>
+      <span class="badge b-tech">Firebase RTDB</span>
+      <span class="badge b-free">Free</span>
+    </div>
+  </div>
+  <div class="who-card">
+    <div class="who-item"><strong>Who builds this</strong>Frontend dev (settings UI) + Supabase (contacts table)</div>
+    <div class="who-item"><strong>Key UX rule</strong>Contacts don't need to install anything. Link opens in any browser.</div>
+  </div>
+</div>
+
+<div id="p7" class="panel">
+  <div class="feature-card">
+    <div class="feature-header">
+      <div class="feature-icon icon-gray"><i class="ti ti-calculator" aria-hidden="true"></i></div>
+      <div><p class="feature-title">Disguise mode</p><p class="feature-sub">Hides SafeHer — looks like a calculator to anyone watching</p></div>
+    </div>
+    <p class="feature-body">Imagine a woman is in a threatening situation where the person threatening her can see her phone screen. She can't be seen using a "safety app." She triple-taps the logo — the screen instantly looks like a calculator. But underneath, everything is still running: SOS listening, voice trigger active, location sharing on.</p>
+    <ul class="step-list">
+      <li><span class="step-num">1</span>User triple-taps the SafeHer logo (3 quick taps)</li>
+      <li><span class="step-num">2</span>The entire UI swaps to a calculator skin — buttons, display, the works</li>
+      <li><span class="step-num">3</span>Behind the scenes: SOS hold-to-activate still works (hold the "=" button for 3 seconds), voice trigger still listens, Firebase location still updating</li>
+      <li><span class="step-num">4</span>No sounds play in disguise mode — completely silent</li>
+      <li><span class="step-num">5</span>To exit: type a secret code (e.g. "1234=") on the calculator</li>
+    </ul>
+    <div style="background:var(--color-background-warning);border-radius:var(--border-radius-md);padding:8px 10px;margin:8px 0;font-size:12px;color:var(--color-text-warning)">
+      This is the feature that makes SafeHer genuinely different from every other safety app. Women in focus groups consistently ask for this. Judges will remember it.
+    </div>
+    <div style="margin-top:6px">
+      <span class="badge b-tech">React state swap</span>
+      <span class="badge b-tech">CSS class toggle</span>
+      <span class="badge b-free">Pure frontend</span>
+    </div>
+  </div>
+  <div class="who-card">
+    <div class="who-item"><strong>Who builds this</strong>Frontend dev — CSS skin swap + keep all listeners running underneath</div>
+    <div class="who-item"><strong>Critical rule</strong>All emergency functions MUST stay active under disguise. Never pause them.</div>
+  </div>
+</div>
+
+<div class="nav-row">
+  <button class="nav-btn" onclick="prev()">← Previous</button>
+  <span id="progress" style="font-size:12px;color:var(--color-text-secondary);align-self:center">1 of 8</span>
+  <button class="nav-btn" onclick="next()">Next →</button>
+</div>
+
+<script>
+let cur=0;
+const btns=document.querySelectorAll('.step-btn');
+const panels=document.querySelectorAll('.panel');
+const colors=['active','','info','info','warn','','safe',''];
+function show(i){
+  panels.forEach(p=>p.classList.remove('show'));
+  btns.forEach((b,j)=>{b.className='step-btn';if(colors[j])b.classList.add(colors[j])});
+  panels[i].classList.add('show');
+  btns[i].className='step-btn active';
+  document.getElementById('progress').textContent=(i+1)+' of '+panels.length;
+  cur=i;
+}
+function next(){show((cur+1)%panels.length)}
+function prev(){show((cur-1+panels.length)%panels.length)}
+show(0);
+</script>
