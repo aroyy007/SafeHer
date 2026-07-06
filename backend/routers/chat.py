@@ -11,6 +11,7 @@ Falls back to hardcoded emergency numbers if anything fails.
 import logging
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+from typing import Optional
 
 from services.chat_service import generate_response
 from core.exceptions import EMERGENCY_FALLBACK
@@ -29,7 +30,7 @@ class ChatRequest(BaseModel):
         max_length=1000,
         description="User's query (Bengali, Banglish, or English)",
     )
-    conversation_id: str | None = Field(
+    conversation_id: Optional[str] = Field(
         default=None,
         description="Optional session ID for tracking/context",
     )

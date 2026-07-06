@@ -14,16 +14,44 @@ export function Signup() {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    
+
+    // Client-side disposable-email hint — server is still the source of truth.
+    const disposableHint = _checkDisposableClient(formData.email);
+    if (disposableHint) {
+      setError(disposableHint);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       await signup(formData);
       navigate('/app/sos');
     } catch (err) {
-      setError(err.body ? JSON.parse(err.body).detail : 'Signup failed');
+      let msg = 'Signup failed';
+      try {
+        if (err && err.body) msg = JSON.parse(err.body).detail || msg;
+      } catch (_) {}
+      setError(msg);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Small client-side guard so users get feedback before a network round-trip.
+  // The server has the real blocklist — this is only a UX hint.
+  function _checkDisposableClient(email) {
+    if (!email) return null;
+    const BLOCKLIST = [
+      'mailinator.com','tempmail.com','10minutemail.com','guerrillamail.com',
+      'yopmail.com','throwawaymail.com','maildrop.cc','trashmail.com',
+      'fakeinbox.com','getnada.com','sharklasers.com','dispostable.com',
+    ];
+    const domain = email.trim().toLowerCase().split('@')[1] || '';
+    if (BLOCKLIST.includes(domain)) {
+      return 'Disposable / temporary email addresses are not allowed. Please use a permanent email.';
+    }
+    return null;
+  }
 
   return (
     <div className="flex-center" style={{ minHeight: '100dvh', padding: '1rem', background: 'var(--color-bg-primary)' }}>

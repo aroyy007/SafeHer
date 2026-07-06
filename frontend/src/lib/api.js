@@ -126,6 +126,22 @@ export const api = {
       }),
   },
 
+  // ----- Incidents -----
+
+  /**
+   * Submit an anonymous safety incident report.
+   * @param {{lat:number, lng:number, category:string, description?:string, time_of_day?:string, anonymous?:boolean}} data
+   */
+  reportIncident: (data) =>
+    request('/incidents/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: sessionHeaders(),
+    }),
+
+  /** Fetch hand-curated hotspot GeoJSON for the map heatmap layer. */
+  heatmap: () => request('/heatmap/'),
+
   // ----- Auth & Contacts -----
   auth: {
     login: (credentials) => request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),

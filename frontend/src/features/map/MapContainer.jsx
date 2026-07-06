@@ -1,8 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Navigation, Loader2 } from 'lucide-react';
+import { Navigation, Loader2, Layers, AlertTriangle } from 'lucide-react';
 import { api } from '../../lib/api';
+import { IncidentReportModal } from '../sos/IncidentReportModal';
 
 // Fix Leaflet's default icon paths (broken by bundlers)
 delete L.Icon.Default.prototype._getIconUrl;
@@ -16,6 +17,7 @@ export function MapContainer() {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const routeLayerRef = useRef(null);
+  const heatmapLayerRef = useRef(null);
 
   // Routing State
   const [startPoint, setStartPoint] = useState('');
@@ -27,6 +29,13 @@ export function MapContainer() {
   const [endCoords, setEndCoords] = useState(null);
   const [startCandidates, setStartCandidates] = useState([]);
   const [endCandidates, setEndCandidates] = useState([]);
+
+  // Heatmap toggle
+  const [showHeatmap, setShowHeatmap] = useState(true);
+
+  // Incident reporting
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportCoords, setReportCoords] = useState(null);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -54,6 +63,75 @@ export function MapContainer() {
       }
     };
   }, []);
+
+  // Load heatmap from backend (hand-curated hotspots)
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch(`${api.base}/heatmap/`);
+        if (!res.ok) return;
+        const geo = await res.json();
+        if (cancelled) return;
+        const features = geo?.features || [];
+        const hotspots = features
+          .filter(f => f?.geometry?.coordinates?.length === 2)
+          .map(f => ({
+            lat: f.geometry.coordinates[1],
+            lng: f.geometry.coordinates[0],
+            weight: Number(f.properties?.weight ?? 0.5),
+            category: f.properties?.category || 'incident',
+            id: f.properties?.id || `${f.geometry.coordinates.join(',')}`,
+          }));
+        if (heatmapLayerRef.current) {
+          mapRef.current?.removeLayer(heatmapLayerRef.current);
+          heatmapLayerRef.current = null;
+        }
+        const layerGroup = L.layerGroup();
+        hotspots.forEach(h => {
+          // color & radius scale with the curated weight (0-1)
+          const radius = 120 + h.weight * 380;  // meters
+          const color = h.weight >= 0.7 ? '#dc2626'   // red — high risk
+                     : h.weight >= 0.45 ? '#f59e0b'  // amber — moderate
+                     : '#facc15';                     // yellow — caution
+          L.circle([h.lat, h.lng], {
+            radius,
+            color,
+            fillColor: color,
+            fillOpacity: 0.18,
+            weight: 1,
+            opacity: 0.6,
+            interactive: true,
+          })
+            .bindTooltip(
+              `<div style="font-size:0.75rem"><strong>Reported incidents</strong><br/>` +
+              `Category: ${h.category}<br/>Risk: ${Math.round(h.weight * 100)}%</div>`,
+              { direction: 'top', offset: [0, -8] }
+            )
+            .addTo(layerGroup);
+        });
+        heatmapLayerRef.current = layerGroup;
+        if (showHeatmap) layerGroup.addTo(mapRef.current);
+      } catch (err) {
+        // Silently ignore — heatmap is decorative, not critical
+        console.warn('Heatmap load failed:', err);
+      }
+    }
+    if (mapRef.current) load();
+    return () => { cancelled = true; };
+  }, [showHeatmap]);
+
+  // Toggle heatmap layer visibility without re-fetching
+  useEffect(() => {
+    const layer = heatmapLayerRef.current;
+    const map = mapRef.current;
+    if (!layer || !map) return;
+    if (showHeatmap) {
+      if (!map.hasLayer(layer)) layer.addTo(map);
+    } else {
+      if (map.hasLayer(layer)) map.removeLayer(layer);
+    }
+  }, [showHeatmap]);
 
   const geocodeDebounced = async (which) => {
     const name = which === 'start' ? startPoint : endPoint;
@@ -166,6 +244,84 @@ export function MapContainer() {
   return (
     <div style={{ position: 'relative', height: '100%', width: '100%' }}>
       <div ref={mapContainerRef} style={{ height: '100%', width: '100%' }} />
+
+      {/* Floating action buttons — heatmap toggle + report incident */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '1rem',
+          right: '1rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.5rem',
+          zIndex: 1000,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setShowHeatmap(v => !v)}
+          aria-label="Toggle incident heatmap"
+          title={showHeatmap ? 'Hide incident heatmap' : 'Show incident heatmap'}
+          className="btn"
+          style={{
+            width: 44,
+            height: 44,
+            padding: 0,
+            background: showHeatmap ? 'var(--color-brand)' : 'rgba(255,255,255,0.95)',
+            color: showHeatmap ? 'white' : 'var(--color-text-primary)',
+            border: 'none',
+            borderRadius: '50%',
+            boxShadow: 'var(--shadow-md, 0 4px 12px rgba(0,0,0,0.2))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Layers size={18} />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            // Use map center if available, otherwise fall back to Chittagong centre.
+            const c = mapRef.current?.getCenter
+              ? mapRef.current.getCenter()
+              : { lat: 22.3569, lng: 91.7832 };
+            setReportCoords({ lat: c.lat, lng: c.lng });
+            setShowReportModal(true);
+          }}
+          aria-label="Report an incident here"
+          title="Report an incident at map center"
+          className="btn"
+          style={{
+            width: 44,
+            height: 44,
+            padding: 0,
+            background: 'var(--color-danger)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '50%',
+            boxShadow: 'var(--shadow-danger, 0 4px 12px rgba(220,38,38,0.4))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <AlertTriangle size={18} />
+        </button>
+      </div>
+
+      {/* Incident report modal */}
+      {showReportModal && (
+        <IncidentReportModal
+          initialCoords={reportCoords}
+          onClose={() => setShowReportModal(false)}
+          onReported={() => {
+            // After a successful report, refresh nearby incidents to show it on the map
+            // (heatmap layer is a static curated set, so we just close the modal here)
+            setShowReportModal(false);
+          }}
+        />
+      )}
 
       {/* Floating Route Planner Panel */}
       <div

@@ -90,6 +90,7 @@ register_exception_handlers(app)
 # Build CORS allow-list from env (comma-separated). Defaults include
 # common dev hosts so the demo works out-of-the-box.
 def _build_allowed_origins() -> list[str]:
+    settings = get_settings()
     raw = settings.ALLOWED_ORIGINS.strip()
     if not raw or raw == "*":
         # Production-safe default — dev hosts that the team actually uses.

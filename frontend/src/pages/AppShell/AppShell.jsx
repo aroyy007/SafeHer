@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation, Navigate } from 'react-router-dom';
-import { ShieldAlert, Map as MapIcon, MessageCircle, User } from 'lucide-react';
+import { ShieldAlert, Map as MapIcon, MessageCircle, User, Users } from 'lucide-react';
 import { EmergencyProvider } from '../../contexts/EmergencyContext';
 import { SosManager } from '../../features/sos/SosManager';
 import { DisguiseMode } from '../../features/sos/DisguiseMode';
@@ -8,6 +8,7 @@ import { VoiceTrigger } from '../../features/sos/VoiceTrigger';
 import { LocationTracker } from '../../features/tracking/LocationTracker';
 import { MapContainer } from '../../features/map/MapContainer';
 import { SafetyChat } from '../../features/chat/SafetyChat';
+import { Circles } from '../Circles/Circles';
 
 /**
  * AppShell — the main in-app experience with the 4-tab bottom nav.
@@ -90,6 +91,7 @@ export function AppShell() {
               <SafetyChat />
             </div>
           )}
+          {location.pathname === '/app/circles' && <Circles />}
           {location.pathname === '/app/you' && <YouTab />}
         </main>
 
@@ -98,6 +100,7 @@ export function AppShell() {
           <NavItem to="/app/sos" label="SOS" icon={<ShieldAlert size={22} strokeWidth={1.75} />} />
           <NavItem to="/app/map" label="Map" icon={<MapIcon size={22} strokeWidth={1.75} />} />
           <NavItem to="/app/chat" label="Chat" icon={<MessageCircle size={22} strokeWidth={1.75} />} />
+          <NavItem to="/app/circles" label="Circles" icon={<Users size={22} strokeWidth={1.75} />} />
           <NavItem to="/app/you" label="You" icon={<User size={22} strokeWidth={1.75} />} />
         </nav>
       </div>

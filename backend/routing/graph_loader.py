@@ -14,6 +14,12 @@ and safety_score attributes on each edge.
 
 If the graph file doesn't exist (first clone, no dataset yet), the
 loader logs a warning and the routing endpoints return 503.
+
+IMPORTANT: GraphML round-trips numeric edge attributes as STRINGS
+(osmnx saves them as floats, but the XML serializer downcasts them).
+Without coercing them back to float, networkx.astar_path crashes with
+"unsupported operand type(s) for +: 'int' and 'str'" because it tries
+to sum the heuristic (int) with the edge weight (str).
 """
 
 import os
@@ -31,6 +37,36 @@ logger = logging.getLogger("safeher.graph_loader")
 _graph: Optional[nx.MultiDiGraph] = None
 _graph_loaded: bool = False
 _graph_error: Optional[str] = None
+
+
+# Attributes we expect to be numeric on each edge. GraphML serializes
+# them as strings, so we have to coerce at load time.
+_NUMERIC_EDGE_ATTRS = (
+    "length",
+    "safety_cost",
+    "safety_score",
+    "lighting_score",
+    "road_type_score",
+    "incident_score",
+)
+
+
+def _coerce_edge_attrs(G: nx.MultiDiGraph) -> int:
+    """Coerce numeric edge attributes from str → float in place.
+
+    Returns the number of edges coerced.
+    """
+    coerced = 0
+    for _u, _v, data in G.edges(data=True):
+        for attr in _NUMERIC_EDGE_ATTRS:
+            if attr in data and not isinstance(data[attr], (int, float)):
+                try:
+                    data[attr] = float(data[attr])
+                    coerced += 1
+                except (TypeError, ValueError):
+                    # Leave a sensible default so pathfinders don't crash
+                    data[attr] = 0.0 if attr != "length" else 50.0
+    return coerced
 
 
 def load_graph() -> bool:
@@ -79,6 +115,15 @@ def load_graph() -> bool:
 
         _graph_loaded = True
         _graph_error = None
+
+        # Coerce numeric edge attributes that GraphML serialized as strings
+        # — otherwise pathfinders crash with TypeError on int+str.
+        try:
+            n = _coerce_edge_attrs(_graph)
+            if n:
+                logger.info(f"Coerced {n} numeric edge attributes (str → float).")
+        except Exception as e:
+            logger.warning(f"Edge attribute coercion skipped: {e}")
 
         # Verify critical attributes exist
         _verify_graph_attributes()
