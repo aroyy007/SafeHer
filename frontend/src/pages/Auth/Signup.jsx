@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { ShieldCheck, Loader2 } from 'lucide-react';
+import { ShieldCheck, Loader2, ArrowRight, ChevronRight } from 'lucide-react';
+import './auth.css';
 
 export function Signup() {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '' });
@@ -15,7 +16,6 @@ export function Signup() {
     setIsLoading(true);
     setError('');
 
-    // Client-side disposable-email hint — server is still the source of truth.
     const disposableHint = _checkDisposableClient(formData.email);
     if (disposableHint) {
       setError(disposableHint);
@@ -37,8 +37,6 @@ export function Signup() {
     }
   };
 
-  // Small client-side guard so users get feedback before a network round-trip.
-  // The server has the real blocklist — this is only a UX hint.
   function _checkDisposableClient(email) {
     if (!email) return null;
     const BLOCKLIST = [
@@ -54,42 +52,131 @@ export function Signup() {
   }
 
   return (
-    <div className="flex-center" style={{ minHeight: '100dvh', padding: '1rem', background: 'var(--color-bg-primary)' }}>
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <ShieldCheck size={48} color="var(--color-brand)" style={{ margin: '0 auto 1rem' }} />
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Create Account</h1>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>Join SafeHer</p>
+    <div className="auth">
+      {/* Left: editorial brand panel */}
+      <aside className="auth__panel" aria-hidden="true">
+        <Link to="/" className="auth__brand">
+          <span className="auth__brand-mark">
+            <ShieldCheck size={14} strokeWidth={2.25} />
+          </span>
+          SafeHer
+        </Link>
+
+        <div className="auth__panel-body">
+          <div className="eyebrow">Get started</div>
+          <h2 className="auth__panel-title">
+            Build your <em>trusted circle</em><br />before you need it.
+          </h2>
+          <p className="auth__panel-text">
+            Add the people who should know when you&rsquo;re unsafe — family, friends, a coworker who walks
+            the same road home. Three contacts is enough. Twenty is better.
+          </p>
+
+          <ul className="auth__panel-list">
+            <li><span className="auth__panel-dot" /> No phone number required</li>
+            <li><span className="auth__panel-dot" /> No app to install for your circle</li>
+            <li><span className="auth__panel-dot" /> Anonymous incident reports stay anonymous</li>
+          </ul>
         </div>
 
-        {error && <div style={{ color: 'var(--color-danger)', textAlign: 'center', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</div>}
+        <div className="auth__panel-foot">
+          <span className="auth__panel-foot-meta">v0.1 · CUET SciBlitz</span>
+          <span className="auth__panel-foot-meta">© {new Date().getFullYear()}</span>
+        </div>
+      </aside>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>Full Name</label>
-            <input type="text" required className="input-field" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>Email</label>
-            <input type="email" required className="input-field" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>Phone Number</label>
-            <input type="tel" required className="input-field" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>Password</label>
-            <input type="password" required className="input-field" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
-          </div>
-          <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem', padding: '0.75rem' }} disabled={isLoading}>
-            {isLoading ? <Loader2 className="animate-spin" /> : "Sign Up"}
-          </button>
-        </form>
-        
-        <p style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
-          Already have an account? <Link to="/login" style={{ color: 'var(--color-brand)' }}>Log In</Link>
-        </p>
-      </div>
+      {/* Right: form */}
+      <main className="auth__main">
+        <div className="auth__form-wrap">
+          <Link to="/" className="auth__home-link">
+            ← Back to home
+          </Link>
+
+          <header className="auth__form-head">
+            <h1 className="auth__title">Create account</h1>
+            <p className="auth__sub">It takes about a minute.</p>
+          </header>
+
+          {error && (
+            <div className="auth__error" role="alert">{error}</div>
+          )}
+
+          <form onSubmit={handleSubmit} className="auth__form">
+            <div className="auth__field">
+              <label htmlFor="name">Full name</label>
+              <input
+                id="name"
+                type="text"
+                required
+                className="input-field"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                autoComplete="name"
+              />
+            </div>
+            <div className="auth__field">
+              <label htmlFor="email">Email</label>
+              <input
+                id="email"
+                type="email"
+                required
+                className="input-field"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                autoComplete="email"
+              />
+            </div>
+            <div className="auth__field">
+              <label htmlFor="phone">Phone number</label>
+              <input
+                id="phone"
+                type="tel"
+                required
+                className="input-field"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                autoComplete="tel"
+              />
+            </div>
+            <div className="auth__field">
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                required
+                className="input-field"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                autoComplete="new-password"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isLoading}
+              style={{ minHeight: 44, marginTop: 'var(--space-2)' }}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="animate-spin" size={16} /> Creating account…
+                </>
+              ) : (
+                <>
+                  Create account <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          </form>
+
+          <p className="auth__alt">
+            Already have an account?{' '}
+            <Link to="/login" className="auth__link">
+              Sign in <ChevronRight size={12} />
+            </Link>
+          </p>
+        </div>
+      </main>
     </div>
   );
 }

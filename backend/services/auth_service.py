@@ -42,12 +42,58 @@ def _get_password_salt() -> str:
 
 
 def hash_password(password: str) -> str:
-    """Hash password with sha256 + per-deployment salt."""
-    salt = _get_password_salt()
-    return hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
+    """
+    Hash a password with a per-user random salt + 200k iterations of
+    PBKDF2-HMAC-SHA256. Format: 'pbkdf2$<iterations>$<salt_b64>$<hash_b64>'.
+    Falls back to legacy 'sha256$<hex>' format only when the input hash
+    starts with that prefix (so the demo user keeps working).
+    """
+    salt_bytes = secrets.token_bytes(16)
+    iterations = 200_000
+    derived = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt_bytes, iterations
+    )
+    return "pbkdf2$%d$%s$%s" % (
+        iterations,
+        _b64(salt_bytes),
+        _b64(derived),
+    )
+
 
 def verify_password(password: str, hashed: str) -> bool:
-    return hash_password(password) == hashed
+    """
+    Verify a password against either the new PBKDF2 format or the
+    legacy SHA-256+salt format (so demo accounts created before the
+    security upgrade still authenticate, and we re-hash them on login).
+    """
+    if not hashed:
+        return False
+    if hashed.startswith("pbkdf2$"):
+        try:
+            _, iters, salt_b64, hash_b64 = hashed.split("$", 3)
+            salt = _b64decode(salt_b64)
+            expected = _b64decode(hash_b64)
+            derived = hashlib.pbkdf2_hmac(
+                "sha256", password.encode("utf-8"), salt, int(iters)
+            )
+            return hmac.compare_digest(derived, expected)
+        except Exception:
+            return False
+    # Legacy format: sha256(deployment_salt + password) — still used by the
+    # demo user `demo@safeher.com` whose hash was created before the upgrade.
+    legacy = hashlib.sha256((_get_password_salt() + password).encode("utf-8")).hexdigest()
+    return hmac.compare_digest(legacy, hashed)
+
+
+def _b64(b: bytes) -> str:
+    import base64
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
+
+
+def _b64decode(s: str) -> bytes:
+    import base64
+    padding = "=" * (-len(s) % 4)
+    return base64.urlsafe_b64decode(s + padding)
 
 def generate_token(user_id: str) -> str:
     """Generate a token embedding user ID and expiry, signed with HMAC."""
@@ -141,6 +187,15 @@ async def authenticate_user(email: str, password: str) -> Optional[dict]:
         row = await cur.fetchone()
 
         if row and verify_password(password, row["password_hash"]):
+            # Auto-upgrade legacy SHA-256 hashes to PBKDF2 on successful login.
+            stored = row["password_hash"]
+            if stored and not stored.startswith("pbkdf2$"):
+                new_hash = hash_password(password)
+                await db.execute(
+                    "UPDATE users SET password_hash = ? WHERE id = ?",
+                    (new_hash, row["id"]),
+                )
+                await db.commit()
             return dict(row)
     return None
 

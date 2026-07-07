@@ -131,3 +131,8 @@ def incident_rate_limit():
         max_requests=settings.MAX_INCIDENTS_PER_HOUR,
         window_seconds=3600,
     )
+
+
+def auth_rate_limit():
+    """5 login/signup attempts / 5 min / IP — slows credential stuffing."""
+    return rate_limit("auth", max_requests=5, window_seconds=300)

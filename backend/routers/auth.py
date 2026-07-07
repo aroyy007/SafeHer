@@ -12,6 +12,7 @@ from services.auth_service import (
     create_user, authenticate_user, generate_token, verify_token,
     get_user_by_id, add_emergency_contact, get_emergency_contacts, delete_emergency_contact
 )
+from core.rate_limiter import auth_rate_limit
 
 logger = logging.getLogger("safeher.router.auth")
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -50,7 +51,7 @@ async def get_current_user(authorization: str = Header(None)):
 
 
 # --- Routes ---
-@router.post("/signup")
+@router.post("/signup", dependencies=[Depends(auth_rate_limit())])
 async def signup(req: SignupRequest):
     try:
         user = await create_user(req.name, req.email, req.phone, req.password)
@@ -59,7 +60,7 @@ async def signup(req: SignupRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(auth_rate_limit())])
 async def login(req: LoginRequest):
     user = await authenticate_user(req.email, req.password)
     if not user:

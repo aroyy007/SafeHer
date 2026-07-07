@@ -1,77 +1,203 @@
-/* Reusable Component Styles */
+/* ==========================================================================
+   Reusable Component Styles — Adaline Calm Green
+   Pill-radius buttons, hairline borders, restrained motion, layered hover.
+   ========================================================================== */
 
-/* Buttons */
+:root {
+  /* Layered card hover lift */
+  --hover-lift: -2px;
+  --hover-shadow: 0 8px 24px -10px rgba(10, 29, 8, 0.12), 0 2px 6px -2px rgba(10, 29, 8, 0.06);
+}
+
+/* ---------- Buttons ---------- */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.25rem;
+  padding: 0.625rem 1.125rem;
   font-weight: 500;
-  border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
+  border-radius: var(--radius-full);
+  transition: background var(--transition-fast), color var(--transition-fast),
+              border-color var(--transition-fast), transform 90ms ease-out,
+              box-shadow var(--transition-fast);
   user-select: none;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.2;
+  position: relative;
+  isolation: isolate;
+  text-decoration: none;
 }
 
 .btn:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
 }
 
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Primary — dark forest-black pill */
 .btn-primary {
   background-color: var(--color-brand);
-  color: white;
+  color: var(--color-text-on-accent);
+  border: 1px solid var(--color-brand);
 }
 .btn-primary:hover {
   background-color: var(--color-brand-hover);
+  border-color: var(--color-brand-hover);
 }
 
-.btn-danger {
-  background-color: var(--color-danger);
-  color: white;
+/* Secondary — outline pill, hovers to tonal fill */
+.btn-secondary {
+  background-color: transparent;
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-strong);
 }
-.btn-danger:hover {
-  background-color: var(--color-danger-hover);
+.btn-secondary:hover {
+  background-color: var(--color-bg-secondary);
+  border-color: var(--color-text-muted);
+}
+
+/* Tertiary — bare text */
+.btn-tertiary {
+  background-color: transparent;
+  color: var(--color-text-primary);
+  border: none;
+  padding: 0;
+  border-radius: 0;
+}
+.btn-tertiary:hover {
+  color: var(--color-accent);
 }
 
 .btn-ghost {
   background-color: transparent;
   color: var(--color-text-secondary);
+  border: 1px solid transparent;
 }
 .btn-ghost:hover {
-  background-color: var(--color-bg-tertiary);
+  background-color: var(--color-bg-secondary);
   color: var(--color-text-primary);
 }
 
-/* Inputs */
+.btn-danger {
+  background-color: var(--color-danger);
+  color: white;
+  border: 1px solid var(--color-danger);
+}
+.btn-danger:hover {
+  background-color: var(--color-danger-hover);
+  border-color: var(--color-danger-hover);
+}
+
+/* Subtle arrow-shift on .btn with rightIcon */
+.btn .btn-arrow {
+  display: inline-flex;
+  transition: transform var(--transition-fast);
+}
+.btn:hover .btn-arrow {
+  transform: translateX(2px);
+}
+
+/* ---------- Inputs ---------- */
 .input-field {
   width: 100%;
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-strong);
   color: var(--color-text-primary);
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-md);
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--radius-sm);
   outline: none;
-  transition: border-color var(--transition-fast);
+  transition: border-color var(--transition-fast), background var(--transition-fast),
+              box-shadow var(--transition-fast);
   font-family: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+
+.input-field:hover {
+  border-color: var(--color-text-muted);
 }
 
 .input-field:focus {
-  border-color: var(--color-brand);
+  border-color: var(--color-text-primary);
+  box-shadow: 0 0 0 4px var(--color-focus-ring);
 }
 
 .input-field::placeholder {
   color: var(--color-text-muted);
 }
 
-/* Card */
+textarea.input-field {
+  resize: vertical;
+  min-height: 80px;
+}
+
+select.input-field {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234A6D47' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2rem;
+}
+
+/* ---------- Card ---------- */
 .card {
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  transition: border-color var(--transition-fast), background var(--transition-fast),
+              transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-/* Layout Blocks */
+.card--hover {
+  cursor: pointer;
+}
+.card--hover:hover {
+  border-color: var(--color-text-muted);
+  transform: translateY(var(--hover-lift));
+  box-shadow: var(--hover-shadow);
+}
+
+/* ---------- Eyebrow / mono label ---------- */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+/* ---------- Pill chip ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--color-border);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+a.chip:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-text-primary);
+}
+
+/* ---------- Layout Blocks ---------- */
 .app-container {
   display: flex;
   flex-direction: column;
@@ -84,33 +210,115 @@
   flex: 1;
   position: relative;
   overflow: hidden;
+  background-color: var(--color-bg-primary);
 }
 
+/* Bottom nav with active dot indicator */
 .bottom-nav {
   display: flex;
   justify-content: space-around;
-  padding: 0.75rem;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  border-top: var(--glass-border);
-  z-index: 10;
+  align-items: stretch;
+  padding: 0.375rem 0.5rem;
+  padding-bottom: max(0.375rem, env(safe-area-inset-bottom));
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  border-top: 1px solid var(--color-border);
+  z-index: var(--z-elevated);
 }
 
 .nav-item {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 0.25rem;
   color: var(--color-text-muted);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   transition: color var(--transition-fast);
+  padding: 0.5rem 0.625rem;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  flex: 1;
+  min-height: 56px;
+}
+
+.nav-item:hover {
+  color: var(--color-text-secondary);
+  text-decoration: none;
 }
 
 .nav-item.active {
-  color: var(--color-brand);
+  color: var(--color-text-primary);
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 2px;
+  border-radius: 0 0 var(--radius-full) var(--radius-full);
+  background: var(--color-text-primary);
+  transition: width var(--transition-fast);
 }
 
 .nav-item svg {
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.375rem;
+  height: 1.375rem;
+  transition: transform var(--transition-fast);
+}
+
+.nav-item:hover svg {
+  transform: translateY(-1px);
+}
+
+.nav-item.active svg {
+  transform: scale(1.05);
+}
+
+/* ---------- Divider ---------- */
+.divider {
+  height: 1px;
+  background: var(--color-border);
+  width: 100%;
+}
+
+.divider-strong {
+  height: 1px;
+  background: var(--color-border-strong);
+  width: 100%;
+}
+
+/* ---------- Tonal backgrounds ---------- */
+.bg-calm {
+  background-color: var(--color-bg-primary);
+}
+
+.bg-tonal {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(74, 109, 71, 0.06), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(74, 109, 71, 0.04), transparent 60%),
+    var(--color-bg-primary);
+}
+
+/* ---------- Link with animated underline ---------- */
+.link-underline {
+  position: relative;
+  text-decoration: none;
+  color: inherit;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 1px;
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  transition: background-size var(--transition-normal);
+}
+
+.link-underline:hover {
+  background-size: 100% 1px;
 }

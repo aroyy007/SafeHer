@@ -61,17 +61,29 @@ function NotFound() {
         gap: 'var(--space-3)',
         padding: 'var(--space-6)',
         textAlign: 'center',
+        backgroundColor: 'var(--color-bg-primary)',
+        color: 'var(--color-text-primary)',
       }}
     >
-      <h1 style={{ fontSize: '2rem', fontFamily: 'var(--font-display)', fontWeight: 700 }}>404</h1>
-      <p style={{ color: 'var(--color-text-muted)' }}>This page doesn't exist.</p>
+      <div className="eyebrow">Error 404</div>
+      <h1
+        style={{
+          fontSize: 'clamp(3rem, 8vw, 5rem)',
+          fontFamily: 'var(--font-display)',
+          fontWeight: 400,
+          letterSpacing: '-0.03em',
+          color: 'var(--color-text-primary)',
+        }}
+      >
+        Not found.
+      </h1>
+      <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9375rem', maxWidth: '320px' }}>
+        The page you&rsquo;re looking for doesn&rsquo;t exist or has moved.
+      </p>
       <a
         href="/"
-        style={{
-          marginTop: 'var(--space-3)',
-          color: 'var(--color-brand)',
-          fontWeight: 500,
-        }}
+        className="btn btn-primary"
+        style={{ marginTop: 'var(--space-3)', minHeight: 40 }}
       >
         ← Back home
       </a>

@@ -13,6 +13,7 @@ Flow:
   7. Return generated response
 """
 
+import asyncio
 import logging
 import google.generativeai as genai
 
@@ -57,11 +58,13 @@ async def generate_response(query: str) -> dict:
     preprocessed = preprocess(query)
     logger.info(f"Chat request: lang={preprocessed.lang}, emergency={preprocessed.is_emergency}")
 
-    # Step 2: Retrieve context
+    # Step 2: Retrieve context. We run the embedding + ChromaDB query in
+    # a thread so the FastAPI event loop stays free to serve /sos and
+    # /incidents concurrently with /chat.
     if preprocessed.is_emergency:
-        passages = retrieve_emergency(query)
+        passages = await asyncio.to_thread(retrieve_emergency, query)
     else:
-        passages = retrieve_texts(query)
+        passages = await asyncio.to_thread(retrieve_texts, query)
 
     # Step 3: Retrieval-failure fallback (no LLM call needed)
     if len(passages) == 0:
@@ -89,21 +92,66 @@ async def generate_response(query: str) -> dict:
 
     # Step 5: Generate via Gemini
     try:
+        # gemini-2.5-flash-lite does NOT spend output budget on internal
+        # "thinking" tokens the way gemini-2.5-flash does. Using flash
+        # produces MAX_TOKENS-truncated replies (e.g. "Call 01"). Flash-lite
+        # gives full, deterministic, low-latency replies.
         model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash",
+            model_name="gemini-2.5-flash-lite",
             system_instruction=system,
         )
 
-        response = await model.generate_content_async(
-            contents=preprocessed.original,
-            generation_config=genai.types.GenerationConfig(
-                max_output_tokens=150,
-                temperature=0.05,
-                top_p=0.9,
-            ),
-        )
+        # Hard ceiling — don't let a slow Gemini response stall the server.
+        # google.generativeai's generate_content_async is a real coroutine,
+        # so asyncio.wait_for is the right primitive.
+        try:
+            response = await asyncio.wait_for(
+                model.generate_content_async(
+                    contents=preprocessed.original,
+                    generation_config=genai.types.GenerationConfig(
+                        max_output_tokens=300,
+                        temperature=0.1,
+                        top_p=0.9,
+                    ),
+                ),
+                timeout=12.0,
+            )
+        except asyncio.TimeoutError:
+            logger.error("Gemini call timed out after 12s — degrading to fallback")
+            raise RuntimeError("gemini_timeout") from None
 
-        reply_text = response.text.strip()
+        # Safe extraction: NEVER call response.text before checking
+        # finish_reason. response.text raises ValueError on non-STOP
+        # finishes (MAX_TOKENS / SAFETY / RECITATION / OTHER).
+        try:
+            candidate = response.candidates[0] if response.candidates else None
+            finish = int(candidate.finish_reason) if candidate else 1
+        except Exception:
+            finish = 1  # Default to STOP — let response.text try
+
+        reply_text = ""
+        try:
+            reply_text = (response.text or "").strip()
+        except ValueError as e:
+            logger.warning(f"response.text raised (finish_reason={finish}): {e}")
+            reply_text = ""
+
+        # If Gemini hit MAX_TOKENS (truncated), append a brief guard so the
+        # user always sees complete safety advice.
+        # 0=UNSPECIFIED, 1=STOP, 2=SAFETY, 3=RECITATION, 4=OTHER, 5=MAX_TOKENS
+        if finish not in (0, 1):
+            logger.warning(f"Gemini finish_reason={finish}, reply may be truncated")
+            if not reply_text:
+                # Nothing came through at all — return safety fallback
+                if preprocessed.lang == "en":
+                    reply_text = "I'm having trouble responding right now. Call 999 if you need help."
+                else:
+                    reply_text = "আমি এখন সাহায্য করতে পারছি না। ৯৯৯ কল করুন।"
+            else:
+                if preprocessed.lang == "en":
+                    reply_text = (reply_text + " If unsure, call 999 now.").strip()
+                else:
+                    reply_text = (reply_text + " ৯৯৯ কল করুন।").strip()
 
         return {
             "reply": reply_text,

@@ -1,14 +1,11 @@
 import React from 'react';
 
 /**
- * IconButton — square, accessibility-friendly icon-only button.
- * Renders a button with a 44×44 minimum tap target and proper aria-label.
+ * IconButton — square icon-only button with hover states.
  *
  * Required props:
  *   - ariaLabel (string) — required for accessibility
  *   - onClick (function)
- *
- * Optional: variant (default | danger | ghost), isActive (boolean).
  */
 export function IconButton({
   children,
@@ -16,16 +13,14 @@ export function IconButton({
   onClick,
   variant = 'default',
   isActive = false,
-  size = 44,
+  size = 40,
   style,
   ...rest
 }) {
-  const [hovered, setHovered] = React.useState(false);
-
   const variantStyle = {
     default: {
-      background: isActive ? 'var(--color-brand-soft)' : hovered ? 'var(--color-bg-secondary)' : 'transparent',
-      color: isActive ? 'var(--color-brand)' : 'var(--color-text-secondary)',
+      background: isActive ? 'var(--color-brand-soft)' : 'transparent',
+      color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
       border: '1px solid transparent',
     },
     ghost: {
@@ -34,14 +29,14 @@ export function IconButton({
       border: '1px solid transparent',
     },
     danger: {
-      background: isActive ? 'var(--color-danger)' : hovered ? 'rgba(239,68,68,0.18)' : 'transparent',
-      color: isActive ? 'white' : 'var(--color-danger)',
+      background: isActive ? 'var(--color-danger)' : 'var(--color-danger-bg)',
+      color: 'var(--color-danger)',
       border: '1px solid transparent',
     },
     outline: {
-      background: hovered ? 'var(--color-bg-secondary)' : 'transparent',
+      background: 'transparent',
       color: 'var(--color-text-primary)',
-      border: '1px solid var(--color-border-light)',
+      border: '1px solid var(--color-border-strong)',
     },
   }[variant];
 
@@ -51,20 +46,21 @@ export function IconButton({
       aria-label={ariaLabel}
       title={ariaLabel}
       onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         width: size,
         height: size,
-        borderRadius: 'var(--radius-md)',
+        borderRadius: 'var(--radius-full)',
         cursor: 'pointer',
-        transition: 'background var(--transition-fast), color var(--transition-fast)',
+        transition: 'background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform 90ms ease-out',
         ...variantStyle,
         ...style,
       }}
+      onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.94)'; }}
+      onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
       {...rest}
     >
       {children}

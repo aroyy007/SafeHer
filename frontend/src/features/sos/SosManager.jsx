@@ -1,26 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useEmergency } from '../../contexts/EmergencyContext';
 import { AlertCircle, CheckCircle2, Phone, X } from 'lucide-react';
+import './sos.css';
 
 export function SosManager() {
   const { isEmergency, activateSOS, cancelSOS, contactsNotified } = useEmergency();
   const [holdProgress, setHoldProgress] = useState(0);
   const holdTimerRef = useRef(null);
   const holdIntervalRef = useRef(null);
-  
+
   const HOLD_DURATION = 3000; // 3 seconds
 
   const startHold = () => {
     if (isEmergency) return;
-    
-    // Animate progress ring
     let elapsed = 0;
     holdIntervalRef.current = setInterval(() => {
       elapsed += 50;
       setHoldProgress(Math.min((elapsed / HOLD_DURATION) * 100, 100));
     }, 50);
 
-    // Trigger SOS after duration
     holdTimerRef.current = setTimeout(() => {
       clearInterval(holdIntervalRef.current);
       setHoldProgress(100);
@@ -34,7 +32,6 @@ export function SosManager() {
     setHoldProgress(0);
   };
 
-  // Cleanup
   useEffect(() => {
     return () => {
       if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
@@ -44,117 +41,89 @@ export function SosManager() {
 
   if (isEmergency) {
     return (
-      <div className="absolute-fill flex-center animate-fade-in" style={{
-        backgroundColor: 'var(--color-danger)', 
-        flexDirection: 'column',
-        zIndex: 100,
-        padding: '2rem'
-      }}>
-        <AlertCircle size={80} color="white" className="animate-pulse-danger" style={{ marginBottom: '2rem' }} />
-        
-        <h1 style={{ color: 'white', marginBottom: '0.5rem', fontSize: '2rem' }}>SOS ACTIVATED</h1>
-        
-        <div style={{
-          background: 'rgba(255,255,255,0.1)',
-          padding: '1rem',
-          borderRadius: 'var(--radius-md)',
-          width: '100%',
-          textAlign: 'center',
-          marginBottom: '2rem'
-        }}>
+      <div className="sos-active animate-fade-in">
+        <div className="sos-active__pulse">
+          <AlertCircle size={48} className="animate-pulse-danger" />
+        </div>
+
+        <h1 className="sos-active__title">SOS activated</h1>
+        <p className="sos-active__sub">Trusted contacts are being notified.</p>
+
+        <div className="sos-active__status">
           {contactsNotified ? (
-            <div className="flex-center" style={{ gap: '0.5rem', color: 'white' }}>
-              <CheckCircle2 /> <span>Trusted contacts notified</span>
-            </div>
+            <span><CheckCircle2 size={14} /> Contacts notified</span>
           ) : (
-            <div style={{ color: 'rgba(255,255,255,0.7)' }}>Notifying contacts...</div>
+            <span className="sos-active__status-pending">Notifying contacts…</span>
           )}
         </div>
 
-        <button 
-          className="btn" 
-          style={{ 
-            background: 'white', 
-            color: 'var(--color-danger)', 
-            width: '100%',
-            marginBottom: '1rem',
-            padding: '1rem',
-            fontSize: '1.25rem'
-          }}
-        >
-          <Phone /> CALL 999
-        </button>
-
-        <button 
-          className="btn btn-ghost" 
-          onClick={cancelSOS}
-          style={{ color: 'white', opacity: 0.8 }}
-        >
-          <X /> Cancel SOS
-        </button>
+        <div className="sos-active__actions">
+          <a href="tel:999" className="btn btn-primary sos-active__call" style={{ backgroundColor: 'var(--color-danger)' }}>
+            <Phone size={16} /> Call 999
+          </a>
+          <button onClick={cancelSOS} className="btn btn-ghost" style={{ color: 'white' }}>
+            <X size={14} /> Cancel SOS
+          </button>
+        </div>
       </div>
     );
   }
 
-  // Normal view
   return (
-    <div style={{ textAlign: 'center' }}>
-      <p style={{ color: 'var(--color-text-muted)', marginBottom: '2rem' }}>Hold for 3 seconds to activate SOS</p>
-      
-      <div 
-        className="sos-button-container" 
-        style={{ position: 'relative', width: '200px', height: '200px', margin: '0 auto' }}
-      >
-        {/* Progress Ring */}
-        <svg 
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', transform: 'rotate(-90deg)' }} 
+    <div className="sos">
+      <div className="sos__head">
+        <div className="eyebrow">Emergency</div>
+        <h2 className="sos__title">Press &amp; hold the button.</h2>
+        <p className="sos__sub">
+          Hold for <strong>3 seconds</strong> to alert your trusted circle and share your live location.
+          Or just say <span className="font-bn">&ldquo;বাঁচাও&rdquo;</span>.
+        </p>
+      </div>
+
+      <div className="sos__button-wrap">
+        <svg
+          className="sos__ring"
           viewBox="0 0 100 100"
+          aria-hidden="true"
         >
-          <circle 
-            cx="50" cy="50" r="45" 
-            fill="none" 
-            stroke="var(--color-bg-tertiary)" 
-            strokeWidth="5" 
+          <circle
+            cx="50" cy="50" r="45"
+            fill="none"
+            stroke="var(--color-border)"
+            strokeWidth="2"
           />
-          <circle 
-            cx="50" cy="50" r="45" 
-            fill="none" 
-            stroke="var(--color-danger)" 
-            strokeWidth="5"
+          <circle
+            cx="50" cy="50" r="45"
+            fill="none"
+            stroke="var(--color-danger)"
+            strokeWidth="2"
             strokeDasharray="283"
             strokeDashoffset={283 - (283 * holdProgress) / 100}
-            style={{ transition: 'stroke-dashoffset 0.1s linear' }}
+            className="sos__ring-progress"
           />
         </svg>
 
-        {/* Button */}
         <button
           onPointerDown={startHold}
           onPointerUp={cancelHold}
           onPointerLeave={cancelHold}
-          style={{
-            position: 'absolute',
-            top: '10px',
-            left: '10px',
-            width: '180px',
-            height: '180px',
-            borderRadius: '50%',
-            backgroundColor: 'var(--color-danger)',
-            color: 'white',
-            fontSize: '2rem',
-            fontWeight: 'bold',
-            boxShadow: 'var(--shadow-danger)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            border: 'none',
-            userSelect: 'none',
-            WebkitUserSelect: 'none'
-          }}
+          className="sos__button"
+          aria-label="Hold for 3 seconds to activate SOS"
         >
-          SOS
+          <span className="sos__button-eyebrow">Hold</span>
+          <span className="sos__button-text">SOS</span>
         </button>
+      </div>
+
+      <div className="sos__footer">
+        <div className="sos__footer-item">
+          <span className="sos__footer-dot" />
+          Voice trigger armed
+        </div>
+        <div className="sos__footer-item">
+          <span className="sos__footer-dot sos__footer-dot--accent" />
+          Location live
+        </div>
       </div>
     </div>
   );

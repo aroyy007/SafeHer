@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { ShieldCheck, Loader2 } from 'lucide-react';
+import { ShieldCheck, Loader2, ArrowRight, ChevronRight } from 'lucide-react';
+import './auth.css';
 
 export function Login() {
   const [email, setEmail] = useState('demo@safeher.com');
@@ -15,7 +16,7 @@ export function Login() {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    
+
     try {
       await login(email, password);
       navigate('/app/sos');
@@ -27,34 +28,120 @@ export function Login() {
   };
 
   return (
-    <div className="flex-center" style={{ minHeight: '100dvh', padding: '1rem', background: 'var(--color-bg-primary)' }}>
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <ShieldCheck size={48} color="var(--color-brand)" style={{ margin: '0 auto 1rem' }} />
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Welcome Back</h1>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>Sign in to SafeHer</p>
+    <div className="auth">
+      {/* Left: editorial brand panel */}
+      <aside className="auth__panel" aria-hidden="true">
+        <Link to="/" className="auth__brand">
+          <span className="auth__brand-mark">
+            <ShieldCheck size={14} strokeWidth={2.25} />
+          </span>
+          SafeHer
+        </Link>
+
+        <div className="auth__panel-body">
+          <div className="eyebrow">Welcome back</div>
+          <h2 className="auth__panel-title">
+            <em>Three seconds</em><br />to a safer you.
+          </h2>
+          <p className="auth__panel-text">
+            Trusted by your circle, designed for Bangladesh. One hold of the SOS button alerts everyone
+            who matters and shares your live location — instantly.
+          </p>
+
+          <ul className="auth__panel-list">
+            <li>
+              <span className="auth__panel-dot" /> Bengali voice trigger — say <span className="font-bn">"বাঁচাও"</span>
+            </li>
+            <li>
+              <span className="auth__panel-dot" /> Crime-aware safe routes
+            </li>
+            <li>
+              <span className="auth__panel-dot" /> Live location sharing — no install on the other end
+            </li>
+          </ul>
         </div>
 
-        {error && <div style={{ color: 'var(--color-danger)', textAlign: 'center', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</div>}
+        <div className="auth__panel-foot">
+          <span className="auth__panel-foot-meta">v0.1 · CUET SciBlitz</span>
+          <span className="auth__panel-foot-meta">© {new Date().getFullYear()}</span>
+        </div>
+      </aside>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>Email</label>
-            <input type="email" required className="input-field" value={email} onChange={e => setEmail(e.target.value)} />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>Password</label>
-            <input type="password" required className="input-field" value={password} onChange={e => setPassword(e.target.value)} />
-          </div>
-          <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem', padding: '0.75rem' }} disabled={isLoading}>
-            {isLoading ? <Loader2 className="animate-spin" /> : "Log In"}
-          </button>
-        </form>
-        
-        <p style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
-          Don't have an account? <Link to="/signup" style={{ color: 'var(--color-brand)' }}>Sign Up</Link>
-        </p>
-      </div>
+      {/* Right: form */}
+      <main className="auth__main">
+        <div className="auth__form-wrap">
+          <Link to="/" className="auth__home-link">
+            ← Back to home
+          </Link>
+
+          <header className="auth__form-head">
+            <h1 className="auth__title">Sign in</h1>
+            <p className="auth__sub">Continue your safety setup.</p>
+          </header>
+
+          {error && (
+            <div className="auth__error" role="alert">{error}</div>
+          )}
+
+          <form onSubmit={handleSubmit} className="auth__form">
+            <div className="auth__field">
+              <label htmlFor="email">Email</label>
+              <input
+                id="email"
+                type="email"
+                required
+                className="input-field"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+              />
+            </div>
+            <div className="auth__field">
+              <div className="auth__field-row">
+                <label htmlFor="password">Password</label>
+                <a href="#" className="auth__forgot">Forgot?</a>
+              </div>
+              <input
+                id="password"
+                type="password"
+                required
+                className="input-field"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isLoading}
+              style={{ minHeight: 44, marginTop: 'var(--space-2)' }}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="animate-spin" size={16} /> Signing in…
+                </>
+              ) : (
+                <>
+                  Sign in <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          </form>
+
+          <p className="auth__alt">
+            Don&rsquo;t have an account?{' '}
+            <Link to="/signup" className="auth__link">
+              Create one <ChevronRight size={12} />
+            </Link>
+          </p>
+
+          <p className="auth__hint">
+            Demo credentials are pre-filled for the SciBlitz review.
+          </p>
+        </div>
+      </main>
     </div>
   );
 }

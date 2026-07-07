@@ -1,0 +1,235 @@
+/* ==========================================================================
+   SOS Manager — calm shell with the red ring as the only loud accent
+   ========================================================================== */
+
+.sos {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--space-8) var(--space-5);
+  width: 100%;
+  max-width: 420px;
+}
+
+.sos__head { margin-bottom: var(--space-12); }
+
+.sos__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-top: var(--space-3);
+  margin-bottom: var(--space-3);
+  color: var(--color-text-primary);
+  text-wrap: balance;
+}
+
+.sos__sub {
+  font-size: 0.9375rem;
+  color: var(--color-text-secondary);
+  line-height: 1.55;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.sos__sub strong {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+/* ---------- Button ---------- */
+.sos__button-wrap {
+  position: relative;
+  width: clamp(176px, 56vw, 220px);
+  height: clamp(176px, 56vw, 220px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-12);
+}
+
+.sos__ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.sos__ring-progress {
+  transition: stroke-dashoffset 0.1s linear;
+}
+
+.sos__button {
+  position: relative;
+  width: 78%;
+  height: 78%;
+  border-radius: 50%;
+  background-color: var(--color-bg-primary);
+  color: var(--color-danger);
+  border: 1px solid var(--color-border-strong);
+  font-family: var(--font-display);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast),
+              transform 100ms ease-out, box-shadow var(--transition-fast);
+}
+
+.sos__button:hover {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 6px rgba(185, 28, 28, 0.06);
+}
+
+.sos__button:active {
+  background-color: var(--color-bg-secondary);
+  transform: scale(0.98);
+}
+
+.sos__button-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.sos__button-text {
+  font-size: clamp(2.5rem, 8vw, 3rem);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--color-danger);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Footer micro-status ---------- */
+.sos__footer {
+  display: flex;
+  gap: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+  width: 100%;
+  justify-content: center;
+}
+
+.sos__footer-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sos__footer-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  position: relative;
+}
+
+.sos__footer-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0.4;
+  animation: pulse-soft 1.8s ease-out infinite;
+}
+
+.sos__footer-dot--accent { background: var(--color-success); }
+
+/* ---------- Activated state ---------- */
+.sos-active {
+  position: absolute;
+  inset: 0;
+  background-color: var(--color-danger);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-8);
+  z-index: var(--z-toast);
+  gap: var(--space-3);
+  animation: fadeIn 240ms var(--ease-out) both;
+}
+
+.sos-active__pulse {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-2);
+  color: white;
+  animation: pulse-danger 2s infinite;
+}
+
+.sos-active__title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 5vw, 2.75rem);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  color: white;
+}
+
+.sos-active__sub {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.85);
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+.sos-active__status {
+  background: rgba(255, 255, 255, 0.10);
+  padding: 0.625rem 1.125rem;
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: var(--space-2) 0;
+}
+
+.sos-active__status-pending {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.sos-active__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 320px;
+  margin-top: var(--space-4);
+}
+
+.sos-active__call {
+  background: white;
+  color: var(--color-danger);
+  border-color: white;
+  padding: 0.875rem 1rem;
+  font-size: 1rem;
+}
+
+.sos-active__call:hover {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(255, 255, 255, 0.92);
+}

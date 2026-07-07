@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, Bot, User } from 'lucide-react';
 import { api } from '../../lib/api';
+import './chat.css';
 
 export function SafetyChat() {
   const [messages, setMessages] = useState([
@@ -35,7 +36,7 @@ export function SafetyChat() {
       console.error(err);
       setMessages(prev => [...prev, {
         role: 'system',
-        content: '⚠️ Failed to connect to SafeHer AI. In an emergency, please use the SOS button or dial 999.'
+        content: '⚠ Failed to connect to SafeHer AI. In an emergency, please use the SOS button or dial 999.'
       }]);
     } finally {
       setIsLoading(false);
@@ -43,86 +44,53 @@ export function SafetyChat() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+    <div className="chat">
       {/* Header */}
-      <div style={{ padding: '1rem', borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-secondary)' }}>
-        <h2 style={{ fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Bot color="var(--color-brand)" /> SafeHer Assistant
-        </h2>
-        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Powered by Groq + L3Cube</p>
+      <div className="chat__head">
+        <div>
+          <div className="eyebrow">Assistant</div>
+          <h2 className="chat__title">SafeHer AI</h2>
+          <p className="chat__meta">Powered by Groq + L3Cube · Bengali &amp; English</p>
+        </div>
       </div>
 
-      {/* Chat Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {/* Messages */}
+      <div className="chat__body">
         {messages.map((msg, i) => (
-          <div 
-            key={i} 
-            style={{ 
-              display: 'flex', 
-              flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-              gap: '0.5rem',
-              alignItems: 'flex-start'
-            }}
-          >
-            <div style={{ 
-              width: '32px', 
-              height: '32px', 
-              borderRadius: '50%', 
-              background: msg.role === 'user' ? 'var(--color-brand)' : msg.role === 'assistant' ? 'var(--color-bg-tertiary)' : 'var(--color-warning-bg)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}>
-              {msg.role === 'user' ? <User size={16} /> : <Bot size={16} color={msg.role === 'system' ? 'var(--color-warning)' : 'white'} />}
+          <div key={i} className={`chat__msg chat__msg--${msg.role}`}>
+            <div className="chat__avatar">
+              {msg.role === 'user' ? <User size={14} /> : <Bot size={14} />}
             </div>
-            
-            <div style={{
-              background: msg.role === 'user' ? 'var(--color-brand)' : 'var(--color-bg-secondary)',
-              color: msg.role === 'system' ? 'var(--color-warning)' : 'white',
-              padding: '0.75rem 1rem',
-              borderRadius: 'var(--radius-lg)',
-              borderTopRightRadius: msg.role === 'user' ? '4px' : 'var(--radius-lg)',
-              borderTopLeftRadius: msg.role !== 'user' ? '4px' : 'var(--radius-lg)',
-              maxWidth: '80%',
-              fontSize: '0.9rem',
-              lineHeight: 1.5,
-              border: msg.role === 'system' ? '1px solid var(--color-warning)' : 'none'
-            }}>
-              {msg.content}
-            </div>
+            <div className="chat__bubble">{msg.content}</div>
           </div>
         ))}
         {isLoading && (
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--color-text-muted)' }}>
-            <Loader2 size={16} className="animate-spin" /> SafeHer is thinking...
+          <div className="chat__loading">
+            <Loader2 size={14} className="animate-spin" /> SafeHer is thinking…
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
-      <div style={{ padding: '1rem', background: 'var(--color-bg-secondary)', borderTop: '1px solid var(--color-border)' }}>
-        <form onSubmit={handleSend} style={{ display: 'flex', gap: '0.5rem' }}>
-          <input 
-            type="text" 
-            className="input-field" 
-            placeholder="Ask for safety advice (English or Bengali)..." 
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={isLoading}
-            style={{ flex: 1 }}
-          />
-          <button 
-            type="submit" 
-            className="btn btn-primary" 
-            disabled={!input.trim() || isLoading}
-            style={{ padding: '0.75rem' }}
-          >
-            <Send size={20} />
-          </button>
-        </form>
-      </div>
+      {/* Input */}
+      <form onSubmit={handleSend} className="chat__form">
+        <input
+          type="text"
+          className="input-field chat__input"
+          placeholder="Ask about safety, rights, or local help…"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          disabled={isLoading}
+        />
+        <button
+          type="submit"
+          className="btn btn-primary chat__send"
+          disabled={!input.trim() || isLoading}
+          aria-label="Send message"
+        >
+          <Send size={16} />
+        </button>
+      </form>
     </div>
   );
 }

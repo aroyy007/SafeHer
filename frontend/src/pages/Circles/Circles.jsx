@@ -4,6 +4,7 @@ import {
   ChevronLeft, Phone, Mail, Heart, ChevronRight
 } from 'lucide-react';
 import { api } from '../../lib/api';
+import '../../pages/AppShell/appshell.css';
 
 /**
  * Circles — Trusted Circles management page.
@@ -11,10 +12,6 @@ import { api } from '../../lib/api';
  * Lets the user create named circles (e.g. "Family", "Friends",
  * "Coworkers"), add members (phone / email / other handle), and
  * remove either a circle or a single member.
- *
- * Backend identity is the per-device `X-Session-Id` header (already
- * managed by api.js sessionHeaders()), so there's nothing to wire up
- * — open the page and it works.
  */
 export function Circles() {
   const [circles, setCircles] = useState([]);
@@ -42,7 +39,6 @@ export function Circles() {
       const circle = await api.circles.create({ name, color });
       setCircles(prev => [circle, ...prev]);
       setShowCreateForm(false);
-      // Auto-open the new circle so the user can add members right away
       setOpenCircleId(circle.id);
     } catch (err) {
       setError(_readError(err, 'Could not create circle.'));
@@ -60,7 +56,6 @@ export function Circles() {
     }
   };
 
-  // Detail view: one circle expanded with members
   if (openCircleId) {
     const circle = circles.find(c => c.id === openCircleId);
     if (circle) {
@@ -77,29 +72,13 @@ export function Circles() {
     }
   }
 
-  // List view
   return (
-    <div
-      className="animate-fade-in"
-      style={{
-        padding: 'var(--space-6)',
-        overflowY: 'auto',
-        height: '100%',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 'var(--space-6)',
-        }}
-      >
+    <div className="appshell__scroll animate-fade-in">
+      <div className="appshell__page-head">
         <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Users size={22} color="var(--color-brand)" /> Trusted Circles
-          </h2>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
+          <div className="eyebrow">Circles</div>
+          <h2 className="appshell__page-title">Trusted Circles</h2>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginTop: '0.375rem', lineHeight: 1.5 }}>
             Groups of contacts who get notified when you activate SOS.
           </p>
         </div>
@@ -108,28 +87,14 @@ export function Circles() {
             type="button"
             onClick={() => setShowCreateForm(true)}
             className="btn btn-primary"
-            style={{ padding: '0.5rem 0.875rem', fontSize: '0.875rem' }}
           >
-            <Plus size={16} /> New Circle
+            <Plus size={14} /> New Circle
           </button>
         )}
       </div>
 
       {error && (
-        <div
-          role="alert"
-          style={{
-            color: 'var(--color-danger)',
-            fontSize: '0.8125rem',
-            marginBottom: '1rem',
-            padding: '0.5rem 0.75rem',
-            background: 'var(--color-bg-secondary)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--color-danger)',
-          }}
-        >
-          {error}
-        </div>
+        <div className="auth__error" role="alert">{error}</div>
       )}
 
       {showCreateForm && (
@@ -140,13 +105,13 @@ export function Circles() {
       )}
 
       {isLoading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-8)', color: 'var(--color-text-muted)' }}>
           <Loader2 className="animate-spin" />
         </div>
       ) : circles.length === 0 ? (
         <EmptyState onCreate={() => setShowCreateForm(true)} />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        <div className="appshell__list">
           {circles.map(c => (
             <CircleRow
               key={c.id}
@@ -165,11 +130,11 @@ export function Circles() {
 
 function CreateCircleForm({ onCancel, onCreate }) {
   const [name, setName] = useState('');
-  const [color, setColor] = useState('#FF4D6D');
+  const [color, setColor] = useState('#4A6D47');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const PALETTE = ['#FF4D6D', '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899'];
+  const PALETTE = ['#0A1D08', '#4A6D47', '#2F6F3E', '#A06A12', '#6B7B68', '#B91C1C'];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -188,19 +153,15 @@ function CreateCircleForm({ onCancel, onCreate }) {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="glass-panel"
-      style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-4)' }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <h3 style={{ fontSize: '0.9375rem', fontWeight: 600 }}>New Trusted Circle</h3>
-        <button type="button" onClick={onCancel} aria-label="Cancel" style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>
-          <X size={18} />
+    <form onSubmit={handleSubmit} className="appshell__card appshell__form">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-1)' }}>
+        <h4 className="appshell__form-title">New trusted circle</h4>
+        <button type="button" onClick={onCancel} aria-label="Cancel" className="appshell__icon-btn">
+          <X size={14} />
         </button>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+      <div className="appshell__form-grid">
         <input
           autoFocus
           required
@@ -212,7 +173,9 @@ function CreateCircleForm({ onCancel, onCreate }) {
           disabled={isSubmitting}
         />
         <div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '0.375rem' }}>Color</div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+            Accent
+          </div>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             {PALETTE.map(c => (
               <button
@@ -222,24 +185,29 @@ function CreateCircleForm({ onCancel, onCreate }) {
                 aria-label={`Pick color ${c}`}
                 aria-pressed={color === c}
                 style={{
-                  width: 32,
-                  height: 32,
+                  width: 28,
+                  height: 28,
                   borderRadius: '50%',
                   background: c,
-                  border: color === c ? '3px solid var(--color-text-primary)' : '2px solid transparent',
+                  border: color === c ? '2px solid var(--color-text-primary)' : '1px solid var(--color-border)',
+                  outline: color === c ? '2px solid var(--color-bg-primary)' : 'none',
+                  outlineOffset: -3,
                   cursor: 'pointer',
                   padding: 0,
-                  transition: 'transform 0.15s',
-                  transform: color === c ? 'scale(1.15)' : 'scale(1)',
+                  transition: 'transform 150ms',
+                  transform: color === c ? 'scale(1.1)' : 'scale(1)',
                 }}
               />
             ))}
           </div>
         </div>
-        {error && <div style={{ color: 'var(--color-danger)', fontSize: '0.8125rem' }}>{error}</div>}
-        <button type="submit" className="btn btn-primary" disabled={isSubmitting} style={{ padding: '0.625rem' }}>
-          {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : 'Create Circle'}
-        </button>
+        {error && <div className="auth__error" style={{ marginBottom: 0 }}>{error}</div>}
+        <div className="appshell__form-actions">
+          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="animate-spin" size={14} /> : 'Create Circle'}
+          </button>
+          <button type="button" onClick={onCancel} className="btn btn-ghost">Cancel</button>
+        </div>
       </div>
     </form>
   );
@@ -249,52 +217,30 @@ function CircleRow({ circle, onOpen, onDelete }) {
   const memberCount = circle.member_count ?? 0;
   return (
     <div
-      className="glass-panel"
-      style={{
-        padding: 'var(--space-4)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.875rem',
-        cursor: 'pointer',
-        transition: 'transform 0.15s, box-shadow 0.15s',
-      }}
+      className="appshell__row"
       onClick={onOpen}
-      onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
-      tabIndex={0}
       role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
       aria-label={`Open ${circle.name} circle`}
+      style={{ cursor: 'pointer' }}
     >
-      <div
-        aria-hidden="true"
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: '50%',
-          background: circle.color || '#FF4D6D',
-          color: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}
-      >
-        <Users size={20} />
+      <div className="appshell__row-avatar" style={{ background: circle.color || 'var(--color-accent)', color: 'var(--color-text-on-accent)' }} aria-hidden="true">
+        <Users size={16} />
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 500 }}>{circle.name}</div>
-        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-          {memberCount} {memberCount === 1 ? 'member' : 'members'}
-        </div>
+      <div className="appshell__row-info">
+        <p className="appshell__row-name">{circle.name}</p>
+        <p className="appshell__row-meta">{memberCount} {memberCount === 1 ? 'member' : 'members'}</p>
       </div>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
         aria-label={`Delete ${circle.name}`}
-        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-danger)', padding: '0.5rem' }}
+        className="appshell__icon-btn"
       >
-        <Trash2 size={16} />
+        <Trash2 size={14} />
       </button>
-      <ChevronRight size={18} color="var(--color-text-muted)" />
+      <ChevronRight size={16} color="var(--color-text-muted)" />
     </div>
   );
 }
@@ -310,7 +256,6 @@ function CircleDetail({ circle, onBack, onDelete, onUpdated }) {
     try {
       const data = await api.circles.get(circle.id);
       setDetail(data);
-      // Bubble member count up to the parent list
       onUpdated?.({ ...circle, member_count: data?.member_count ?? 0 });
     } catch (err) {
       setError(_readError(err, 'Could not load circle.'));
@@ -323,7 +268,7 @@ function CircleDetail({ circle, onBack, onDelete, onUpdated }) {
 
   const handleAddMember = async ({ name, contact, relation }) => {
     await api.circles.addMember(circle.id, { name, contact, relation });
-    await load(); // re-fetch to get accurate member list
+    await load();
   };
 
   const handleRemoveMember = async (memberId) => {
@@ -337,67 +282,49 @@ function CircleDetail({ circle, onBack, onDelete, onUpdated }) {
   };
 
   return (
-    <div
-      className="animate-fade-in"
-      style={{ padding: 'var(--space-6)', overflowY: 'auto', height: '100%' }}
-    >
+    <div className="appshell__scroll animate-fade-in">
       <button
         type="button"
         onClick={onBack}
         style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.25rem',
           background: 'transparent',
           border: 'none',
           cursor: 'pointer',
-          color: 'var(--color-brand)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.25rem',
-          fontSize: '0.875rem',
-          marginBottom: '1rem',
+          color: 'var(--color-text-secondary)',
+          fontSize: '0.8125rem',
+          marginBottom: 'var(--space-2)',
           padding: 0,
+          transition: 'color 150ms',
         }}
       >
-        <ChevronLeft size={16} /> All Circles
+        <ChevronLeft size={14} /> All Circles
       </button>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', marginBottom: 'var(--space-4)' }}>
-        <div
-          aria-hidden="true"
-          style={{
-            width: 52,
-            height: 52,
-            borderRadius: '50%',
-            background: circle.color || '#FF4D6D',
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <Users size={26} />
+      <div className="appshell__card appshell__card--user" style={{ marginBottom: 'var(--space-2)' }}>
+        <div className="appshell__avatar" style={{ background: circle.color || 'var(--color-accent)', color: 'var(--color-text-on-accent)' }} aria-hidden="true">
+          <Users size={20} />
         </div>
-        <div style={{ flex: 1 }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>{circle.name}</h2>
-          <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
+        <div className="appshell__user-info">
+          <h2 className="appshell__user-name">{circle.name}</h2>
+          <p className="appshell__user-meta">
             {detail?.members?.length ?? circle.member_count ?? 0} members
-          </div>
+          </p>
         </div>
         <button
           type="button"
           onClick={onDelete}
           aria-label="Delete circle"
-          className="btn btn-ghost"
-          style={{ color: 'var(--color-danger)', padding: '0.5rem' }}
+          className="appshell__icon-btn"
         >
-          <Trash2 size={16} />
+          <Trash2 size={14} />
         </button>
       </div>
 
       {error && (
-        <div role="alert" style={{ color: 'var(--color-danger)', fontSize: '0.8125rem', marginBottom: '1rem' }}>
-          {error}
-        </div>
+        <div className="auth__error" role="alert">{error}</div>
       )}
 
       {!showAdd && (
@@ -405,9 +332,9 @@ function CircleDetail({ circle, onBack, onDelete, onUpdated }) {
           type="button"
           onClick={() => setShowAdd(true)}
           className="btn btn-primary"
-          style={{ width: '100%', padding: '0.625rem', marginBottom: 'var(--space-4)' }}
+          style={{ minHeight: 44 }}
         >
-          <UserPlus size={16} /> Add Member
+          <UserPlus size={14} /> Add member
         </button>
       )}
 
@@ -426,13 +353,13 @@ function CircleDetail({ circle, onBack, onDelete, onUpdated }) {
       )}
 
       {isLoading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-8)', color: 'var(--color-text-muted)' }}>
           <Loader2 className="animate-spin" />
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        <div className="appshell__list">
           {(detail?.members ?? []).length === 0 ? (
-            <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.875rem', padding: '1rem 0' }}>
+            <p className="appshell__empty">
               No members yet — add the people you trust to be alerted when you activate SOS.
             </p>
           ) : (
@@ -443,7 +370,7 @@ function CircleDetail({ circle, onBack, onDelete, onUpdated }) {
         </div>
       )}
 
-      <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 'var(--space-6)', textAlign: 'center' }}>
+      <p className="appshell__hint">
         Members of this circle will be alerted when you activate SOS from the SOS tab.
       </p>
     </div>
@@ -475,18 +402,14 @@ function AddMemberForm({ onCancel, onAdd }) {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="glass-panel"
-      style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-4)' }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <h4 style={{ fontSize: '0.9375rem', fontWeight: 600 }}>New Member</h4>
-        <button type="button" onClick={onCancel} aria-label="Cancel" style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>
-          <X size={18} />
+    <form onSubmit={handleSubmit} className="appshell__card appshell__form">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-1)' }}>
+        <h4 className="appshell__form-title">New member</h4>
+        <button type="button" onClick={onCancel} aria-label="Cancel" className="appshell__icon-btn">
+          <X size={14} />
         </button>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <div className="appshell__form-grid">
         <input
           autoFocus
           required
@@ -514,10 +437,13 @@ function AddMemberForm({ onCancel, onAdd }) {
         >
           {RELATIONS.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
-        {error && <div style={{ color: 'var(--color-danger)', fontSize: '0.8125rem' }}>{error}</div>}
-        <button type="submit" className="btn btn-primary" disabled={isSubmitting} style={{ padding: '0.5rem' }}>
-          {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : 'Save'}
-        </button>
+        {error && <div className="auth__error" style={{ marginBottom: 0 }}>{error}</div>}
+        <div className="appshell__form-actions">
+          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="animate-spin" size={14} /> : 'Save'}
+          </button>
+          <button type="button" onClick={onCancel} className="btn btn-ghost">Cancel</button>
+        </div>
       </div>
     </form>
   );
@@ -526,49 +452,24 @@ function AddMemberForm({ onCancel, onAdd }) {
 function MemberRow({ member, onRemove }) {
   const isEmail = String(member.contact || '').includes('@');
   return (
-    <div
-      className="glass-panel"
-      style={{
-        padding: 'var(--space-3) var(--space-4)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem',
-      }}
-    >
-      <div
-        aria-hidden="true"
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: '50%',
-          background: 'var(--color-bg-tertiary, #e5e7eb)',
-          color: 'var(--color-text-secondary)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}
-      >
-        {isEmail ? <Mail size={16} /> : <Phone size={16} />}
+    <div className="appshell__row">
+      <div className="appshell__row-avatar" aria-hidden="true">
+        {isEmail ? <Mail size={14} /> : <Phone size={14} />}
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {member.name}
-        </div>
-        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {member.contact}
-        </div>
+      <div className="appshell__row-info">
+        <p className="appshell__row-name">{member.name}</p>
+        <p className="appshell__row-meta">{member.contact}</p>
         {member.relation && (
-          <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.125rem' }}>
-            <Heart size={10} /> {member.relation}
-          </div>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.625rem', color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: '0.25rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+            <Heart size={9} /> {member.relation}
+          </p>
         )}
       </div>
       <button
         type="button"
         onClick={onRemove}
         aria-label={`Remove ${member.name}`}
-        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-danger)', padding: '0.5rem' }}
+        className="appshell__icon-btn"
       >
         <Trash2 size={14} />
       </button>
@@ -578,36 +479,18 @@ function MemberRow({ member, onRemove }) {
 
 function EmptyState({ onCreate }) {
   return (
-    <div
-      className="glass-panel"
-      style={{
-        padding: '2rem 1.5rem',
-        textAlign: 'center',
-        marginTop: '1rem',
-      }}
-    >
-      <div
-        aria-hidden="true"
-        style={{
-          width: 64,
-          height: 64,
-          borderRadius: '50%',
-          background: 'var(--color-bg-tertiary, #f3f4f6)',
-          color: 'var(--color-text-muted)',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: '0.75rem',
-        }}
-      >
-        <AlertCircle size={28} />
+    <div className="appshell__card" style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-6)' }}>
+      <div className="appshell__avatar" style={{ margin: '0 auto var(--space-4) auto' }} aria-hidden="true">
+        <AlertCircle size={20} />
       </div>
-      <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.375rem' }}>No trusted circles yet</h3>
-      <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>
+      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 400, letterSpacing: '-0.015em', color: 'var(--color-text-primary)', marginBottom: '0.375rem' }}>
+        No trusted circles yet
+      </h3>
+      <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9375rem', marginBottom: 'var(--space-6)', maxWidth: '300px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
         Create your first circle to group people you trust — family, friends, or coworkers.
       </p>
-      <button type="button" onClick={onCreate} className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}>
-        <Plus size={16} /> Create your first circle
+      <button type="button" onClick={onCreate} className="btn btn-primary">
+        <Plus size={14} /> Create your first circle
       </button>
     </div>
   );
