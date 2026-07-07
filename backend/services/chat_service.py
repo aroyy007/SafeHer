@@ -9,13 +9,14 @@ Flow:
   3. Else → standard RAG retrieval
   4. If no results → return 999 fallback (never hallucinate)
   5. Format context and system prompt
-  6. Call Gemini 2.5 Flash
+  6. Call configured LLM (Gemini default; Groq fallback when LLM_PROVIDER=groq
+     or Gemini quota is exhausted)
   7. Return generated response
 """
 
 import asyncio
 import logging
-import google.generativeai as genai
+from typing import Optional
 
 from language.preprocessor import preprocess
 from rag.retriever import retrieve_texts, retrieve_emergency
@@ -24,12 +25,142 @@ from core.config import get_settings
 logger = logging.getLogger("safeher.chat_service")
 settings = get_settings()
 
-# Configure Gemini once at module load
-if settings.GEMINI_API_KEY:
+
+def _init_provider():
+    """
+    Return a tuple (provider_name, callable) for the active LLM.
+
+    Provider resolution order:
+      1. settings.LLM_PROVIDER (explicit override — use this for Groq)
+      2. Otherwise default to Gemini if key present, else Groq if key present.
+
+    The returned callable has signature:
+        async def generate(system: str, user_msg: str) -> str
+    It raises on upstream failure; the chat endpoint catches and falls back.
+    """
+    provider = (settings.LLM_PROVIDER or "").lower().strip()
+
+    # --- Explicit override path ---
+    if provider == "groq":
+        return _make_groq_provider()
+    if provider == "gemini":
+        return _make_gemini_provider()
+
+    # --- Auto-detect ---
+    if settings.GEMINI_API_KEY:
+        return _make_gemini_provider()
+    if settings.GROQ_API_KEY:
+        return _make_groq_provider()
+
+    raise RuntimeError(
+        "No LLM provider available. Set GEMINI_API_KEY or GROQ_API_KEY in .env."
+    )
+
+
+def _make_gemini_provider():
+    """Return ('gemini', async_fn) using the deprecated google.generativeai SDK."""
+    import google.generativeai as genai  # lazy import — saves startup if unused
+
+    if not settings.GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY not set")
+
     genai.configure(api_key=settings.GEMINI_API_KEY)
-    logger.info("Gemini API configured")
-else:
-    logger.warning("GEMINI_API_KEY is empty — chat will degrade to emergency fallback")
+    logger.info("Gemini provider ready")
+
+    async def generate(system: str, user_msg: str) -> str:
+        # gemini-2.5-flash-lite does NOT spend output budget on internal
+        # "thinking" tokens the way gemini-2.5-flash does. Using flash
+        # produces MAX_TOKENS-truncated replies. Flash-lite gives full,
+        # deterministic, low-latency replies.
+        model = genai.GenerativeModel(
+            model_name="gemini-2.5-flash-lite",
+            system_instruction=system,
+        )
+
+        # Hard ceiling — don't let a slow Gemini response stall the server.
+        try:
+            response = await asyncio.wait_for(
+                model.generate_content_async(
+                    contents=user_msg,
+                    generation_config=genai.types.GenerationConfig(
+                        max_output_tokens=300,
+                        temperature=0.1,
+                        top_p=0.9,
+                    ),
+                ),
+                timeout=12.0,
+            )
+        except asyncio.TimeoutError:
+            raise RuntimeError("gemini_timeout") from None
+
+        # Safe extraction: NEVER call response.text before checking
+        # finish_reason. response.text raises ValueError on non-STOP
+        # finishes (MAX_TOKENS / SAFETY / RECITATION / OTHER).
+        try:
+            candidate = response.candidates[0] if response.candidates else None
+            finish = int(candidate.finish_reason) if candidate else 1
+        except Exception:
+            finish = 1  # Default to STOP — let response.text try
+
+        try:
+            reply_text = (response.text or "").strip()
+        except ValueError:
+            reply_text = ""
+
+        # 0=UNSPECIFIED, 1=STOP, 2=SAFETY, 3=RECITATION, 4=OTHER, 5=MAX_TOKENS
+        if finish not in (0, 1):
+            logger.warning(f"Gemini finish_reason={finish}, reply may be truncated")
+            reply_text = (reply_text + " [truncated]").strip() if reply_text else ""
+
+        return reply_text
+
+    return ("gemini", generate)
+
+
+def _make_groq_provider():
+    """Return ('groq', async_fn) using the official Groq Python SDK (openai-style)."""
+    import groq  # lazy import — saves startup if unused
+
+    if not settings.GROQ_API_KEY:
+        raise RuntimeError("GROQ_API_KEY not set")
+
+    client = groq.Groq(api_key=settings.GROQ_API_KEY)
+    # llama-3.3-70b-versatile is on Groq's free preview tier with generous limits.
+    # Switch to "openai/gpt-oss-120b" if you'd rather use the OpenAI-OSS model.
+    model_name = "llama-3.3-70b-versatile"
+    logger.info(f"Groq provider ready (model={model_name})")
+
+    async def generate(system: str, user_msg: str) -> str:
+        # Groq SDK is sync; run in a thread to avoid blocking the event loop.
+        def _call():
+            return client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_msg},
+                ],
+                max_tokens=300,
+                temperature=0.1,
+                top_p=0.9,
+                timeout=12.0,
+            )
+
+        response = await asyncio.to_thread(_call)
+        choice = response.choices[0] if response.choices else None
+        if not choice:
+            raise RuntimeError("groq_empty_response")
+        finish = (choice.finish_reason or "stop").lower()
+        # 'stop' and 'length' are normal; 'length' just means we hit max_tokens.
+        # 'content_filter' / 'tool_calls' / None mean the model did not produce text.
+        if finish not in ("stop", "length"):
+            logger.warning(f"Groq finish_reason={finish}")
+            raise RuntimeError(f"groq_finish:{finish}")
+        content = (choice.message.content or "").strip()
+        if not content:
+            raise RuntimeError("groq_empty_content")
+        return content
+
+    return ("groq", generate)
 
 
 SYSTEM_PROMPT = """You are SafeHer, a calm, precise emergency safety guide for women in Bangladesh.
@@ -90,76 +221,44 @@ async def generate_response(query: str) -> dict:
             "followed by immediate action steps.\n\n"
         ) + system
 
-    # Step 5: Generate via Gemini
-    try:
-        # gemini-2.5-flash-lite does NOT spend output budget on internal
-        # "thinking" tokens the way gemini-2.5-flash does. Using flash
-        # produces MAX_TOKENS-truncated replies (e.g. "Call 01"). Flash-lite
-        # gives full, deterministic, low-latency replies.
-        model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash-lite",
-            system_instruction=system,
-        )
+    # Step 5: Generate via configured provider.
+    # Resolution order: explicit LLM_PROVIDER → Gemini (if key present) → Groq.
+    # If a query is the SECOND or later call to fail on Gemini quota and
+    # Groq is also configured, we transparently fall over to Groq so the
+    # demo doesn't break when one provider 429s mid-presentation.
+    last_error: Optional[Exception] = None
 
-        # Hard ceiling — don't let a slow Gemini response stall the server.
-        # google.generativeai's generate_content_async is a real coroutine,
-        # so asyncio.wait_for is the right primitive.
+    for try_groq_fallback in (False, True):
         try:
-            response = await asyncio.wait_for(
-                model.generate_content_async(
-                    contents=preprocessed.original,
-                    generation_config=genai.types.GenerationConfig(
-                        max_output_tokens=300,
-                        temperature=0.1,
-                        top_p=0.9,
-                    ),
-                ),
-                timeout=12.0,
-            )
-        except asyncio.TimeoutError:
-            logger.error("Gemini call timed out after 12s — degrading to fallback")
-            raise RuntimeError("gemini_timeout") from None
-
-        # Safe extraction: NEVER call response.text before checking
-        # finish_reason. response.text raises ValueError on non-STOP
-        # finishes (MAX_TOKENS / SAFETY / RECITATION / OTHER).
-        try:
-            candidate = response.candidates[0] if response.candidates else None
-            finish = int(candidate.finish_reason) if candidate else 1
-        except Exception:
-            finish = 1  # Default to STOP — let response.text try
-
-        reply_text = ""
-        try:
-            reply_text = (response.text or "").strip()
-        except ValueError as e:
-            logger.warning(f"response.text raised (finish_reason={finish}): {e}")
-            reply_text = ""
-
-        # If Gemini hit MAX_TOKENS (truncated), append a brief guard so the
-        # user always sees complete safety advice.
-        # 0=UNSPECIFIED, 1=STOP, 2=SAFETY, 3=RECITATION, 4=OTHER, 5=MAX_TOKENS
-        if finish not in (0, 1):
-            logger.warning(f"Gemini finish_reason={finish}, reply may be truncated")
-            if not reply_text:
-                # Nothing came through at all — return safety fallback
-                if preprocessed.lang == "en":
-                    reply_text = "I'm having trouble responding right now. Call 999 if you need help."
-                else:
-                    reply_text = "আমি এখন সাহায্য করতে পারছি না। ৯৯৯ কল করুন।"
+            if try_groq_fallback:
+                if not settings.GROQ_API_KEY:
+                    break  # No Groq key — give up
+                provider_name, gen_fn = _make_groq_provider()
+                logger.warning("Falling back to Groq after Gemini failure")
             else:
-                if preprocessed.lang == "en":
-                    reply_text = (reply_text + " If unsure, call 999 now.").strip()
-                else:
-                    reply_text = (reply_text + " ৯৯৯ কল করুন।").strip()
+                provider_name, gen_fn = _init_provider()
 
-        return {
-            "reply": reply_text,
-            "lang_detected": preprocessed.lang,
-            "was_transliterated": preprocessed.was_transliterated,
-            "fallback_used": False,
-        }
+            reply_text = await gen_fn(system, preprocessed.original)
 
-    except Exception as e:
-        logger.error(f"Gemini API call failed: {e}")
-        raise
+            # If the model handed us something but it's clearly truncated
+            # or empty, treat as failure so the next iteration / fallback runs.
+            if not reply_text:
+                raise RuntimeError(f"{provider_name}_empty_response")
+
+            return {
+                "reply": reply_text,
+                "lang_detected": preprocessed.lang,
+                "was_transliterated": preprocessed.was_transliterated,
+                "fallback_used": False,
+                "provider": provider_name,
+            }
+        except Exception as e:
+            last_error = e
+            logger.error(f"LLM call failed ({provider_name}): {e}")
+            # Only retry once on Gemini
+            if provider_name != "gemini" or try_groq_fallback:
+                break
+
+    # If we get here, every provider failed. Re-raise so the router can
+    # emit the EMERGENCY_FALLBACK safety response.
+    raise RuntimeError(f"All LLM providers failed: {last_error}")

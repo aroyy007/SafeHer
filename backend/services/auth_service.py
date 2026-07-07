@@ -19,10 +19,20 @@ from services.disposable_domains import is_disposable
 
 # SECRET_KEY is loaded lazily so that tests / scripts can override it
 # via environment variables without importing this module first.
-
+#
+# Prefer core.config.get_settings() (Pydantic, reads .env) over os.environ
+# so values written to .env take effect without exporting them in the shell.
 def _get_secret_key() -> str:
+    # Try Pydantic settings first (auto-loads .env), then fall back to os.environ.
+    try:
+        from core.config import get_settings
+        key = (get_settings().SAFEHER_SECRET_KEY or "").strip()
+        if key and "change-me" not in key:
+            return key
+    except Exception:
+        pass
     key = os.environ.get("SAFEHER_SECRET_KEY", "").strip()
-    if key:
+    if key and "change-me" not in key:
         return key
     # Fallback for local hackathon dev only. In production, .env MUST
     # set SAFEHER_SECRET_KEY to a long random string. We log a warning
@@ -35,8 +45,15 @@ def _get_secret_key() -> str:
     return "safeher-hackathon-super-secret-DO-NOT-USE-IN-PROD"
 
 def _get_password_salt() -> str:
+    try:
+        from core.config import get_settings
+        salt = (get_settings().SAFEHER_PASSWORD_SALT or "").strip()
+        if salt and "change-me" not in salt:
+            return salt
+    except Exception:
+        pass
     salt = os.environ.get("SAFEHER_PASSWORD_SALT", "").strip()
-    if salt:
+    if salt and "change-me" not in salt:
         return salt
     return "safeher_salt_"
 

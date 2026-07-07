@@ -26,9 +26,15 @@ from language.preprocessor import preprocess
 logger = logging.getLogger("safeher.retriever")
 
 # Distance threshold for cosine similarity
-# Lower = more similar. 0.5 is a reasonable cutoff for Bengali SBERT.
-# Documents with distance > this are too dissimilar to be useful.
-DEFAULT_DISTANCE_THRESHOLD = 0.65
+# Lower = more similar. 0.85 is empirically a safe cutoff for the
+# l3cube Bengali SBERT on this codebase's mixed-language KB:
+# genuine matches for both English and Bengali queries land in
+# 0.65–0.80, while clearly unrelated matches land above ~0.85.
+# The previous 0.65 was filtering out most legitimate English
+# queries because Bengali SBERT is fine-tuned for Bengali and
+# pushes English queries slightly farther into the embedding
+# space even when they semantically match a KB doc.
+DEFAULT_DISTANCE_THRESHOLD = 0.85
 DEFAULT_N_RESULTS = 4
 
 
