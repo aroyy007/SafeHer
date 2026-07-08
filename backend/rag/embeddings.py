@@ -40,7 +40,9 @@ class BengaliEmbedder:
     Singleton Bengali sentence embedder.
 
     Thread-safe: SentenceTransformer.encode() is thread-safe for inference.
-    The singleton pattern ensures the model is loaded only once at startup.
+    The singleton pattern ensures the model is loaded only once per process.
+    Loaded LAZILY on first call to get() so that LITE_MODE servers can
+    start without ever pulling 440MB of model weights into RAM.
     """
     _instance: Optional["BengaliEmbedder"] = None
 
@@ -51,10 +53,15 @@ class BengaliEmbedder:
 
     @classmethod
     def get(cls) -> "BengaliEmbedder":
-        """Get or create the singleton embedder instance."""
+        """Get or create the singleton embedder instance (lazy)."""
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+    @classmethod
+    def reset(cls) -> None:
+        """Forget the loaded model — used in tests."""
+        cls._instance = None
 
     def __init__(self):
         """

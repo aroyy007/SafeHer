@@ -1,22 +1,24 @@
 """
 SafeHer — SOS Event API
 ==========================
-Endpoint: POST /sos/log
+Endpoints (all prefixed /sos):
+  POST /log        — audit log of the SOS activation (used for heatmaps)
+  POST /alert      — server-side email dispatch (backup path, SMTP only)
 
-Records emergency SOS activations.
-This is NOT the alert dispatcher (the frontend sends the actual emails
-via EmailJS for reliability and speed).
-This endpoint exists to keep an audit trail, build heatmaps of where
-emergencies happen, and prevent abuse.
+The frontend dispatches the actual SOS email via EmailJS for reliability
+(works even if the backend is asleep). This /alert endpoint exists so
+production deployments can flip a flag and have the backend send
+emails itself when EmailJS is over quota or blocked.
 """
 
 import logging
-from typing import Literal
-from fastapi import APIRouter, Request
+from typing import Literal, List
+from fastapi import APIRouter, HTTPException, Request
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 
 from services.sos_service import log_sos_event
+from services.sos_alert_service import send_sos_emails, smtp_configured
 from core.config import get_settings
 
 logger = logging.getLogger("safeher.router.sos")
@@ -52,7 +54,7 @@ async def log_sos(event: SOSEvent, request: Request):
 
     # Basic bounds check (don't fail the request, just log it)
     is_valid_location = (
-        settings.BD_LAT_MIN <= event.lat <= settings.BD_LAT_MAX and
+        settings.BD_LAT_MIN <= event.lat <= event.BD_LAT_MAX and
         settings.BD_LNG_MIN <= event.lng <= settings.BD_LNG_MAX
     )
 
@@ -65,3 +67,55 @@ async def log_sos(event: SOSEvent, request: Request):
     await log_sos_event(event, client_ip)
 
     return {"logged": True}
+
+
+# ----- /sos/alert ----------------------------------------------------------
+
+class AlertRecipient(BaseModel):
+    name: str = Field(default="", max_length=80)
+    email: EmailStr
+
+
+class SOSAlertRequest(BaseModel):
+    """Schema for backend-side SOS email dispatch (SMTP fallback)."""
+    from_name: str = Field(..., min_length=1, max_length=80)
+    from_phone: str = Field(..., min_length=3, max_length=40)
+    location_address: str = Field(default="Location unavailable", max_length=400)
+    tracking_link: str = Field(..., min_length=8, max_length=800)
+    time_str: str = Field(..., min_length=4, max_length=120)
+    recipients: List[AlertRecipient] = Field(..., min_length=1, max_length=30)
+
+
+@router.post("/alert")
+async def sos_alert(req: SOSAlertRequest):
+    """
+    Server-side SOS email dispatch.
+
+    Only works if SMTP_* env vars are configured. Returns 503 with a
+    clear message otherwise — the frontend should fall back to EmailJS
+    in that case. This endpoint intentionally does NOT require auth so
+    the SOS can fire from a fresh device even if the token has expired.
+    """
+    if not smtp_configured():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Server-side email dispatch is not configured. "
+                "Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM "
+                "in the backend environment to enable this fallback."
+            ),
+        )
+
+    try:
+        result = await send_sos_emails(
+            recipients=[r.model_dump() for r in req.recipients],
+            from_name=req.from_name,
+            from_phone=req.from_phone,
+            time_str=req.time_str,
+            location_address=req.location_address,
+            tracking_link=req.tracking_link,
+        )
+        return {"dispatched": True, **result}
+    except Exception as e:
+        logger.error(f"/sos/alert dispatch failed: {e}")
+        raise HTTPException(status_code=500, detail=f"dispatch_failed: {e}")

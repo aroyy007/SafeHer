@@ -48,27 +48,39 @@ async def lifespan(app: FastAPI):
     """
     settings = get_settings()
     logger.info("Starting SafeHer Backend...")
+    if settings.LITE_MODE:
+        logger.warning(
+            "LITE_MODE=true — skipping Bengali SBERT pre-load and ChromaDB "
+            "auto-seeding to fit on Render free tier (512MB RAM). Chat and "
+            "RAG endpoints will degrade gracefully."
+        )
 
     # 1. Initialize local SQLite fallback
     if not settings.USE_SUPABASE:
         await init_db()
 
     # 2. Seed Knowledge Base (if empty)
-    # This might take a few seconds if it needs to embed 60+ entries,
-    # but it only happens once on first boot.
-    try:
-        seed_if_empty()
-    except Exception as e:
-        logger.error(f"Failed to seed knowledge base: {e}")
-        # We don't crash — chat will gracefully degrade to emergency numbers
+    # Skipped entirely in LITE_MODE — would OOM on Render free tier.
+    # The chat endpoint will lazy-load the fallback MiniLM model on demand.
+    if not settings.LITE_MODE:
+        try:
+            seed_if_empty()
+        except Exception as e:
+            logger.error(f"Failed to seed knowledge base: {e}")
+            # We don't crash — chat will gracefully degrade to emergency numbers
+    else:
+        logger.info("Skipping knowledge-base seed (LITE_MODE).")
 
     # 3. Load OSM Routing Graph
     # This loads the ~25MB .graphml file into RAM
     # If it fails, the server still starts, but /route returns 503
-    try:
-        load_graph()
-    except Exception as e:
-        logger.error(f"Failed to load routing graph: {e}")
+    if not settings.LITE_MODE:
+        try:
+            load_graph()
+        except Exception as e:
+            logger.error(f"Failed to load routing graph: {e}")
+    else:
+        logger.info("Skipping routing graph load (LITE_MODE).")
 
     logger.info("SafeHer Backend ready for traffic.")
     yield

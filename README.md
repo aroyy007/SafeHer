@@ -250,6 +250,8 @@ SafeHer/
 | `INTEGRATIONS_SETUP.md` | Step-by-step setup for Firebase, Supabase, EmailJS, Groq, Gemini |
 | `PRE_DEMO_CHANGES.md` | Audit log of the pre-demo hardening pass (auth, JWT, photo, home_area) |
 | `DEPLOYMENT.md` | Production deployment guide for Render / Vercel / Netlify / Railway / Fly.io |
+| `BACKEND_DEPLOY.md` | Backend-specific deploy guide (Render / Railway / HuggingFace Space), `LITE_MODE` flag, SMTP fallback |
+| `FIREBASE_SETUP.md` | Step-by-step for enabling Firebase Phone Auth (fixes `auth/configuration-not-found`) |
 | `Problem.md` | Problem framing + Bangladesh context |
 | `datasets.md` | Dataset inventory + sources |
 | `SafeHer_Backend_System_Design.md` | Original system design document |

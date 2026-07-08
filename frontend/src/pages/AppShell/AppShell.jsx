@@ -157,8 +157,13 @@ function YouTab() {
           <div className="appshell__form-grid">
             <input required placeholder="Name" className="input-field" value={newContact.name} onChange={e => setNewContact({...newContact, name: e.target.value})} />
             <input required placeholder="Phone" type="tel" className="input-field" value={newContact.phone} onChange={e => setNewContact({...newContact, phone: e.target.value})} />
-            <input placeholder="Email (optional)" type="email" className="input-field" value={newContact.email} onChange={e => setNewContact({...newContact, email: e.target.value})} />
+            <input placeholder="Email (strongly recommended)" type="email" className="input-field" value={newContact.email} onChange={e => setNewContact({...newContact, email: e.target.value})} />
           </div>
+          <p style={{ margin: '6px 0 0', fontSize: 12, color: '#888' }}>
+            SOS alerts send by email so the contact receives your live tracking
+            link even when SMS is blocked. Phone alone works for voice calls but
+            not for the tracking link.
+          </p>
           <div className="appshell__form-actions">
             <button type="submit" className="btn btn-primary">Save</button>
             <button type="button" onClick={() => setShowAddForm(false)} className="btn btn-ghost">Cancel</button>
@@ -177,7 +182,10 @@ function YouTab() {
               </div>
               <div className="appshell__row-info">
                 <p className="appshell__row-name">{c.name}</p>
-                <p className="appshell__row-meta">{c.phone}</p>
+                <p className="appshell__row-meta">
+                  {c.phone}
+                  {c.email ? ` · ${c.email}` : ' · ⚠ no email (tracking link will not be delivered)'}
+                </p>
               </div>
               <button onClick={() => deleteContact(c.id)} className="appshell__icon-btn" aria-label={`Delete ${c.name}`}>
                 <Trash2 size={14} />

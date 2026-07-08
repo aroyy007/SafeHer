@@ -11,11 +11,13 @@ from fastapi import APIRouter
 import os
 import json
 
+from core.config import get_settings
 from routing.graph_loader import get_graph_stats
 from rag.knowledge_base import get_collection_stats
 
 logger = logging.getLogger("safeher.router.health")
 
+settings = get_settings()
 health_router = APIRouter(tags=["health"])
 heatmap_router = APIRouter(prefix="/heatmap", tags=["heatmap"])
 
@@ -26,7 +28,17 @@ def health_check():
     Health check endpoint.
     Critical for Render: keeps the free tier instance awake.
     Returns status of the two heavy components: Graph and ChromaDB.
+    In LITE_MODE the heavy components are intentionally unloaded and the
+    status field reports 'lite' so dashboards / UptimeRobot can tell.
     """
+    if settings.LITE_MODE:
+        return {
+            "status": "lite",
+            "lite_mode": True,
+            "graph": {"loaded": False, "note": "Skipped due to LITE_MODE"},
+            "knowledge_base": {"document_count": 0, "note": "Skipped due to LITE_MODE"},
+        }
+
     graph_stats = get_graph_stats()
     kb_stats = get_collection_stats()
 
@@ -38,6 +50,7 @@ def health_check():
 
     return {
         "status": status,
+        "lite_mode": False,
         "graph": graph_stats,
         "knowledge_base": kb_stats,
     }

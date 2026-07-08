@@ -67,6 +67,14 @@ class Settings(BaseSettings):
         default=True,
         description="Use l3cube Bengali SBERT. Set False to fall back to all-MiniLM-L6-v2"
     )
+    LITE_MODE: bool = Field(
+        default=False,
+        description=(
+            "Skip heavy startup tasks (Bengali SBERT load + ChromaDB seeding). "
+            "Set to True on Render free tier (512MB RAM) — chat will return "
+            "a friendly 'lite mode' message and use fallback embeddings on demand."
+        ),
+    )
     GRAPH_PATH: str = Field(
         default="data/chittagong_walk.graphml",
         description="Path to precomputed graph file"
@@ -75,6 +83,13 @@ class Settings(BaseSettings):
         default="./chroma_store",
         description="Path to ChromaDB persistent storage"
     )
+
+    # --- Email (SOS alert fallback) ---
+    SMTP_HOST: str = Field(default="", description="Optional SMTP host for /sos/alert fallback")
+    SMTP_PORT: int = Field(default=587, description="SMTP port (587 for TLS, 465 for SSL)")
+    SMTP_USER: str = Field(default="", description="SMTP username")
+    SMTP_PASSWORD: str = Field(default="", description="SMTP password / app password")
+    SMTP_FROM: str = Field(default="", description="From address used when SMTP is enabled")
 
     # --- Rate Limits ---
     MAX_INCIDENTS_PER_HOUR: int = Field(default=10, description="Max incident reports per session per hour")

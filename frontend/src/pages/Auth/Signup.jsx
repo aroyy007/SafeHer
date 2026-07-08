@@ -81,7 +81,25 @@ export function Signup() {
       setOtpSent(true);
     } catch (err) {
       console.error(err);
-      setError(err?.message || 'Failed to send OTP. Check your phone number and try again.');
+      // Translate the most common Firebase error codes into actionable
+      // guidance for the user. The raw "auth/configuration-not-found"
+      // is opaque; this version points at the fix.
+      const code = err?.code || '';
+      if (code === 'auth/configuration-not-found') {
+        setError(
+          'Phone sign-in is not enabled in the Firebase project. ' +
+          'Open Firebase Console → Authentication → Sign-in method → Phone → Enable. ' +
+          'See FIREBASE_SETUP.md for the full step-by-step.'
+        );
+      } else if (code === 'auth/invalid-phone-number') {
+        setError('That phone number was rejected by Firebase. Double-check the format (+880XXXXXXXXXX).');
+      } else if (code === 'auth/too-many-requests') {
+        setError('Too many OTP requests. Wait a few minutes and try again.');
+      } else if (code === 'auth/quota-exceeded') {
+        setError('SMS quota exhausted for this Firebase project. Contact the project owner.');
+      } else {
+        setError(err?.message || 'Failed to send OTP. Check your phone number and try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -240,13 +258,20 @@ export function Signup() {
               </div>
 
               <div className="auth__field">
-                <label htmlFor="email">Email</label>
+                <label htmlFor="email">
+                  Email <span style={{ color: '#dc2626' }}>*</span>
+                </label>
                 <input
                   id="email" type="email" required className="input-field"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   autoComplete="email"
+                  placeholder="you@example.com"
                 />
+                <small className="auth__hint" style={{ display: 'block', marginTop: 4, color: '#888' }}>
+                  Required — your emergency contacts receive SOS alerts by email, and we send
+                  you an account-recovery link if you ever get locked out.
+                </small>
               </div>
 
               <div className="auth__field">

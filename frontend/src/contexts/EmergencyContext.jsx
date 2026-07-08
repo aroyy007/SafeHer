@@ -154,6 +154,8 @@ export function EmergencyProvider({ children }) {
         tracking_link:    link,
       };
 
+      // 1) Primary path: EmailJS (free tier; browser-direct; survives backend downtime)
+      let emailjsOk = false;
       try {
         await emailjs.send(
           EMAILJS_SERVICE_ID,
@@ -161,9 +163,41 @@ export function EmergencyProvider({ children }) {
           templateParams,
           { publicKey: EMAILJS_PUBLIC_KEY }
         );
-        console.log(`✓ SOS email sent to ${contact.name} <${contact.email}>`);
+        emailjsOk = true;
+        console.log(`✓ SOS email sent via EmailJS to ${contact.name} <${contact.email}>`);
       } catch (err) {
-        console.error(`✗ Failed to email ${contact.name}:`, err);
+        console.warn(`EmailJS failed for ${contact.name}; trying backend SMTP fallback:`, err);
+      }
+
+      // 2) Backup path: backend /sos/alert. Only used if EmailJS threw AND
+      //    the backend has SMTP configured. Frontend never blocks on this —
+      //    a backend 503 is fine, we just log it.
+      if (!emailjsOk) {
+        try {
+          const backendBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+          if (backendBase) {
+            const resp = await fetch(`${backendBase}/sos/alert`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                from_name:        user?.name || 'A SafeHer user',
+                from_phone:       user?.phone || '—',
+                location_address: locationAddress,
+                tracking_link:    link,
+                time_str:         formattedTime,
+                recipients: [{ name: contact.name, email: contact.email }],
+              }),
+            });
+            if (resp.ok) {
+              console.log(`✓ SOS email sent via backend SMTP to ${contact.name} <${contact.email}>`);
+            } else {
+              const txt = await resp.text().catch(() => '');
+              console.error(`✗ Backend SMTP also failed for ${contact.name}: ${resp.status} ${txt}`);
+            }
+          }
+        } catch (err) {
+          console.error(`✗ Backend SMTP fallback threw for ${contact.name}:`, err);
+        }
       }
     });
 

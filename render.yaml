@@ -73,9 +73,27 @@ services:
         value: ""
 
       # Feature flags
-      - key: ENABLE_BENGALI_EMBEDDER
+      # LITE_MODE=true on Render free tier (512MB RAM). Set to "false" and
+      # ENABLE_BENGALI_EMBEDDER=true on the Standard plan ($7/mo) for the
+      # full Bengali SBERT experience. See BACKEND_DEPLOY.md §A.4.
+      - key: LITE_MODE
         value: "true"
+      - key: ENABLE_BENGALI_EMBEDDER
+        value: "false"
       - key: GRAPH_PATH
         value: data/chittagong_walk.graphml
       - key: CHROMA_PATH
         value: ./chroma_store
+
+      # SMTP (optional — for /sos/alert server-side email fallback)
+      # Leave blank to disable. See BACKEND_DEPLOY.md §A.3.
+      - key: SMTP_HOST
+        value: ""
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        value: ""

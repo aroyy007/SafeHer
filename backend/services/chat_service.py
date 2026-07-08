@@ -189,6 +189,37 @@ async def generate_response(query: str) -> dict:
     preprocessed = preprocess(query)
     logger.info(f"Chat request: lang={preprocessed.lang}, emergency={preprocessed.is_emergency}")
 
+    # Step 1.5: LITE_MODE short-circuit (Render free tier).
+    # When LITE_MODE is on we skip the Bengali SBERT embedder + ChromaDB
+    # entirely and return a deterministic, helpful canned reply. Keeps the
+    # endpoint up so /sos, /route, and /incidents still work during the demo.
+    if settings.LITE_MODE:
+        if preprocessed.is_emergency:
+            reply = (
+                "এখনই ৯৯৯ কল করুন। নিরাপদ স্থানে যান এবং বিশ্বস্ত কাউকে জানান।\n\n"
+                "(SafeHer is in lite mode on this server — full Bengali knowledge base is offline. "
+                "For non-emergency questions, run the backend locally.)"
+            )
+            if preprocessed.lang == "en":
+                reply = (
+                    "Call 999 now. Move to a safe place and tell someone you trust.\n\n"
+                    "(SafeHer is in lite mode on this server — full Bengali knowledge base is offline. "
+                    "Run the backend locally for non-emergency questions.)"
+                )
+        else:
+            reply = (
+                "SafeHer is in lite mode on this server, so I can't search the full Bengali "
+                "knowledge base right now. If this is an emergency, call 999 immediately. "
+                "Otherwise, run the backend locally for full answers."
+            )
+        return {
+            "reply": reply,
+            "lang_detected": preprocessed.lang,
+            "was_transliterated": preprocessed.was_transliterated,
+            "fallback_used": True,
+            "lite_mode": True,
+        }
+
     # Step 2: Retrieve context. We run the embedding + ChromaDB query in
     # a thread so the FastAPI event loop stays free to serve /sos and
     # /incidents concurrently with /chat.
