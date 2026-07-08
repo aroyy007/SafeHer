@@ -1,0 +1,81 @@
+# SafeHer — Render Blueprint
+# ============================
+# Drop this file in your repo root. Render auto-discovers it when you
+# click "New +" → "Blueprint" instead of "Web Service". It pre-fills
+# all settings so you don't have to remember anything.
+#
+# NOTE: You still need to set the secret env vars (SUPABASE_*, GEMINI_*,
+# etc.) in the Render dashboard after the first deploy — secrets can't
+# live in version control.
+
+services:
+  - type: web
+    name: safeher-api
+    runtime: python
+    plan: free
+    region: singapore
+    rootDir: backend
+    buildCommand: pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      # Python version (matches backend/runtime.txt)
+      - key: PYTHON_VERSION
+        value: 3.12.7
+
+      # LLM (set actual values in Render dashboard)
+      - key: LLM_PROVIDER
+        value: groq
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: HUGGINGFACE_API_KEY
+        sync: false
+
+      # Auth secrets (set in dashboard — DO NOT commit real values)
+      - key: SAFEHER_SECRET_KEY
+        sync: false
+        generateValue: true   # Render generates a random one for you
+      - key: SAFEHER_PASSWORD_SALT
+        sync: false
+        generateValue: true
+
+      # Supabase
+      - key: USE_SUPABASE
+        value: "false"
+      - key: SUPABASE_URL
+        value: https://yeodkyxfowaqmmugbdmv.supabase.co
+      - key: SUPABASE_KEY
+        value: sb_publishable_T-6SCoxtcecIDyfbDvhpqA_Y0a1o8Wn
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+
+      # Firebase (unused on backend; kept for completeness)
+      - key: USE_FIREBASE
+        value: "false"
+      - key: FIREBASE_CREDENTIALS_BASE64
+        sync: false
+
+      # Server
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "8000"
+      - key: DEBUG
+        value: "false"
+
+      # CORS — set to your Netlify/Vercel domain after frontend deploys
+      - key: ALLOWED_ORIGINS
+        value: ""
+
+      # Feature flags
+      - key: ENABLE_BENGALI_EMBEDDER
+        value: "true"
+      - key: GRAPH_PATH
+        value: data/chittagong_walk.graphml
+      - key: CHROMA_PATH
+        value: ./chroma_store
