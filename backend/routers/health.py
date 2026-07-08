@@ -12,8 +12,6 @@ import os
 import json
 
 from core.config import get_settings
-from routing.graph_loader import get_graph_stats
-from rag.knowledge_base import get_collection_stats
 
 logger = logging.getLogger("safeher.router.health")
 
@@ -28,16 +26,26 @@ def health_check():
     Health check endpoint.
     Critical for Render: keeps the free tier instance awake.
     Returns status of the two heavy components: Graph and ChromaDB.
-    In LITE_MODE the heavy components are intentionally unloaded and the
-    status field reports 'lite' so dashboards / UptimeRobot can tell.
+    In LITE_MODE / RAG_DISABLED the heavy components are intentionally
+    unloaded and the status field reports 'lite' so dashboards /
+    UptimeRobot can tell.
+
+    IMPORTANT: do NOT import rag.* / routing.graph_loader at module load
+    time — they pull in chromadb + sentence_transformers (~500 MB),
+    which defeats the whole point of RAG_DISABLED on Render free tier.
+    We import them lazily inside this function instead.
     """
-    if settings.LITE_MODE:
+    if settings.RAG_DISABLED or settings.LITE_MODE:
         return {
             "status": "lite",
-            "lite_mode": True,
-            "graph": {"loaded": False, "note": "Skipped due to LITE_MODE"},
-            "knowledge_base": {"document_count": 0, "note": "Skipped due to LITE_MODE"},
+            "lite_mode": settings.LITE_MODE,
+            "rag_disabled": settings.RAG_DISABLED,
+            "graph": {"loaded": False, "note": "Skipped due to LITE_MODE / RAG_DISABLED"},
+            "knowledge_base": {"document_count": 0, "note": "Skipped due to LITE_MODE / RAG_DISABLED"},
         }
+
+    from routing.graph_loader import get_graph_stats
+    from rag.knowledge_base import get_collection_stats
 
     graph_stats = get_graph_stats()
     kb_stats = get_collection_stats()
@@ -51,6 +59,7 @@ def health_check():
     return {
         "status": status,
         "lite_mode": False,
+        "rag_disabled": False,
         "graph": graph_stats,
         "knowledge_base": kb_stats,
     }

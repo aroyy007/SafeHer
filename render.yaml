@@ -73,9 +73,13 @@ services:
         value: ""
 
       # Feature flags
-      # LITE_MODE=true on Render free tier (512MB RAM). Set to "false" and
+      # RAG_DISABLED=true + LITE_MODE=true on Render free tier (512MB RAM):
+      # /chat sends queries straight to Gemini with a baked-in bilingual
+      # safety KB. No ChromaDB, no SBERT, no OOM. Set both to "false" and
       # ENABLE_BENGALI_EMBEDDER=true on the Standard plan ($7/mo) for the
-      # full Bengali SBERT experience. See BACKEND_DEPLOY.md §A.3.
+      # full retrieval-augmented experience. See BACKEND_DEPLOY.md §A.3.
+      - key: RAG_DISABLED
+        value: "true"
       - key: LITE_MODE
         value: "true"
       - key: ENABLE_BENGALI_EMBEDDER

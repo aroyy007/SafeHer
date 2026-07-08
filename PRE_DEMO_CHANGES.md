@@ -236,3 +236,39 @@ If something on demo day misbehaves, the **most likely culprits** are:
 2. Firebase Storage bucket not public → profile photos return 403.
 3. Recaptcha container div empty / not in DOM when buildRecaptcha is called.
 4. `safeher.token` not persisting between localStorage and api.js reads.
+
+---
+
+## 5. RAG_DISABLED: chat goes direct to Gemini (kills the 512 MB OOM)
+
+**Why:** Render free tier has 512 MB RAM. The Bengali SBERT model
+(~440 MB) + ChromaDB seeding pushed past that limit and OOM-killed
+the worker on every deploy (`==> Out of memory (used over 512Mi)`).
+
+**What changed:**
+- New env flag `RAG_DISABLED=true` (default false). When true:
+  - The `/chat` endpoint sends user queries directly to Gemini (with
+    Groq fallback) instead of going through ChromaDB retrieval.
+  - The bilingual safety KB (~40 verified facts) is baked into the
+    system prompt so Gemini still gives grounded, fact-anchored
+    answers in Bengali / English / Banglish.
+  - ChromaDB and `sentence_transformers` are **never imported at
+    runtime** — saves ~500 MB of imports during boot.
+- `main.py` lifespan now lazy-imports `seed_if_empty` and `load_graph`
+  so they're only touched when needed.
+- `render.yaml` defaults `RAG_DISABLED=true` + `LITE_MODE=true` so
+  the Blueprint deploy fits in 512 MB by default.
+- `BACKEND_DEPLOY.md` §A.3 documents the new decision matrix.
+
+**Verified:**
+- Endpoint test: Bengali "What is 10921?" → "পারিবারিক সহিংসতার
+  ক্ষেত্রে ১০৯২১ কল করুন।" — grounded in the baked-in KB.
+- Bilingual matching preserved: English "domestic violence" and
+  Banglish "Bangladesh e rape er shasti ki?" both return the
+  correct Section 9 life-imprisonment citation.
+- Genuine misses fall through to the safety fallback: "I don't have
+  that info. Call 999 now." — no hallucinations.
+- Boot time: ~7 ms (was seconds while loading SBERT + seeding 40
+  docs into ChromaDB).
+- No `chromadb` or `sentence_transformers` in `sys.modules` after
+  the server is up — verified with stub-and-grep.

@@ -75,6 +75,15 @@ class Settings(BaseSettings):
             "a friendly 'lite mode' message and use fallback embeddings on demand."
         ),
     )
+    RAG_DISABLED: bool = Field(
+        default=False,
+        description=(
+            "Disable ChromaDB + SBERT at runtime too. /chat sends queries "
+            "directly to Gemini (with Groq fallback) using a baked-in "
+            "bilingual safety knowledge base in the system prompt. "
+            "Combine with LITE_MODE for Render free tier."
+        ),
+    )
     GRAPH_PATH: str = Field(
         default="data/chittagong_walk.graphml",
         description="Path to precomputed graph file"

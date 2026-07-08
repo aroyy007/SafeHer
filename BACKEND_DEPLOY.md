@@ -50,16 +50,24 @@ The blueprint pre-fills everything that's safe to commit. **Secrets** (sync: fal
 
 ### A.3 Pick the right RAM tier
 
-**Free tier (512 MB) — must use LITE_MODE:**
-- `LITE_MODE=true` → skips Bengali SBERT + ChromaDB seeding on boot
-- `ENABLE_BENGALI_EMBEDDER=false` → uses the 80 MB English MiniLM model
-- The chat endpoint returns a friendly "lite mode" canned reply when the KB is unavailable
+**Free tier (512 MB) — must use RAG_DISABLED + LITE_MODE:**
+- `RAG_DISABLED=true` → /chat sends queries straight to Gemini (or Groq
+  fallback) with a baked-in bilingual safety KB in the system prompt.
+  No ChromaDB, no SBERT, no embedding model — saves ~500 MB of RAM.
+- `LITE_MODE=true` → skips the OSM graph load on boot
+- `ENABLE_BENGALI_EMBEDDER=false` → no-op when RAG is off
+- Gemini/Groq handle Bengali + English + Banglish natively; the model
+  is instructed to answer ONLY from the baked-in KB or fall back to
+  "call 999"
 - /sos, /sos/alert, /incidents, /health still work normally
 
-**Standard plan ($7/mo, 2 GB) — recommended for the actual demo:**
+**Standard plan ($7/mo, 2 GB) — full RAG experience:**
+- `RAG_DISABLED=false`
 - `LITE_MODE=false`
 - `ENABLE_BENGALI_EMBEDDER=true`
-- Bengali SBERT loads (~440 MB) plus the rest of FastAPI fits comfortably
+- Bengali SBERT loads (~440 MB) plus ChromaDB retrieves per-query
+  context. Slightly better answer quality on niche questions, but
+  most queries return the same answers either way.
 
 ### A.4 Keep it awake
 

@@ -18,8 +18,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import get_settings
 from core.exceptions import register_exception_handlers
-from routing.graph_loader import load_graph
-from rag.knowledge_base import seed_if_empty
+# NOTE: do NOT import `from rag.knowledge_base import seed_if_empty` or
+# `from routing.graph_loader import load_graph` at the top of this
+# module — those pull in chromadb + sentence_transformers (~500 MB of
+# imports) and OOM-kill the Render free tier. We import them lazily
+# inside the lifespan below, guarded by RAG_DISABLED / LITE_MODE.
 from db.local_db import init_db
 
 # Routers
@@ -48,6 +51,12 @@ async def lifespan(app: FastAPI):
     """
     settings = get_settings()
     logger.info("Starting SafeHer Backend...")
+    if settings.RAG_DISABLED:
+        logger.warning(
+            "RAG_DISABLED=true — /chat uses the direct Gemini/Groq path "
+            "with a baked-in bilingual safety KB. ChromaDB and SBERT are "
+            "NEVER imported (saves ~500 MB of RAM on Render free tier)."
+        )
     if settings.LITE_MODE:
         logger.warning(
             "LITE_MODE=true — skipping Bengali SBERT pre-load and ChromaDB "
@@ -60,22 +69,27 @@ async def lifespan(app: FastAPI):
         await init_db()
 
     # 2. Seed Knowledge Base (if empty)
-    # Skipped entirely in LITE_MODE — would OOM on Render free tier.
-    # The chat endpoint will lazy-load the fallback MiniLM model on demand.
-    if not settings.LITE_MODE:
+    # Skipped entirely in RAG_DISABLED or LITE_MODE — would OOM on Render
+    # free tier. The chat endpoint will go straight to the LLM with the
+    # baked-in KB.
+    skip_seed = settings.RAG_DISABLED or settings.LITE_MODE
+    if not skip_seed:
         try:
+            # Lazy import: chromadb + sentence_transformers are heavy.
+            from rag.knowledge_base import seed_if_empty
             seed_if_empty()
         except Exception as e:
             logger.error(f"Failed to seed knowledge base: {e}")
             # We don't crash — chat will gracefully degrade to emergency numbers
     else:
-        logger.info("Skipping knowledge-base seed (LITE_MODE).")
+        logger.info("Skipping knowledge-base seed (RAG_DISABLED or LITE_MODE).")
 
     # 3. Load OSM Routing Graph
     # This loads the ~25MB .graphml file into RAM
     # If it fails, the server still starts, but /route returns 503
     if not settings.LITE_MODE:
         try:
+            from routing.graph_loader import load_graph
             load_graph()
         except Exception as e:
             logger.error(f"Failed to load routing graph: {e}")

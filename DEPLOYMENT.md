@@ -387,8 +387,8 @@ If any of these fail, jump to [Section 10](#10-troubleshooting).
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Render deploy OOM-kills | 512 MB free tier isn't enough | Set `LITE_MODE=true` and `ENABLE_BENGALI_EMBEDDER=false` in Render env vars (chat degrades gracefully); OR upgrade to Render Standard ($7/mo, 2 GB RAM) and set `LITE_MODE=false` |
-| `/health` says `status: lite` | `LITE_MODE=true` is active | Intentional on free tier. To get the full Bengali SBERT, upgrade to Standard and set `LITE_MODE=false` |
+| Render deploy OOM-kills | 512 MB free tier isn't enough | Set `RAG_DISABLED=true` + `LITE_MODE=true` in Render env vars (chat uses baked-in KB, no SBERT/ChromaDB); OR upgrade to Render Standard ($7/mo, 2 GB RAM) and set `RAG_DISABLED=false` + `LITE_MODE=false` |
+| `/health` says `status: lite` | `RAG_DISABLED=true` or `LITE_MODE=true` is active | Intentional on free tier. To get full RAG, upgrade to Standard and set both to `false` |
 | `/health` says `graph.loaded: false` | Graph file not found | Confirm `data/chittagong_walk.graphml` is in the GitHub repo, not just locally |
 | First request takes ~30 s | Render cold start | Cron-job keep-alive (Section 6) |
 | CORS error in browser console | Render `ALLOWED_ORIGINS` doesn't include frontend URL | Add `https://safeher-xyz.netlify.app` to Render env vars |
@@ -397,7 +397,7 @@ If any of these fail, jump to [Section 10](#10-troubleshooting).
 | EmailJS "user not found" | Wrong Service ID or template mismatch | EmailJS Dashboard → Logs → check the error |
 | EmailJS quota exhausted mid-demo | Free tier SMS/email limit hit | Backend now has `/sos/alert` SMTP fallback — see **[BACKEND_DEPLOY.md](BACKEND_DEPLOY.md)** §A.3 to enable |
 | Map tiles are gray | Mapbox token missing | `VITE_MAPBOX_TOKEN` must be in Netlify env vars (not just local) |
-| Chat always returns "call 999" | Both Gemini and Groq rate-limited, or LITE_MODE is on | Set `LLM_PROVIDER=groq` and verify `GROQ_API_KEY` is fresh. Or accept the "lite mode" message in free tier |
+| Chat always returns "call 999" | Both Gemini and Groq rate-limited, or RAG_DISABLED is on and LLM has no info | Set `LLM_PROVIDER=groq` and verify `GROQ_API_KEY` is fresh. In `RAG_DISABLED=true` mode the model only knows what's in the baked-in KB (~40 facts) and will return the 999 fallback for anything outside that scope. |
 | Supabase writes fail with 401 | Using anon key in backend | Use `SUPABASE_SERVICE_KEY` (service-role), not `SUPABASE_KEY` (anon) |
 
 ---
