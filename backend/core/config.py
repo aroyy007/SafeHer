@@ -68,20 +68,24 @@ class Settings(BaseSettings):
         description="Use l3cube Bengali SBERT. Set False to fall back to all-MiniLM-L6-v2"
     )
     LITE_MODE: bool = Field(
-        default=False,
+        default=True,
         description=(
             "Skip heavy startup tasks (Bengali SBERT load + ChromaDB seeding). "
-            "Set to True on Render free tier (512MB RAM) — chat will return "
-            "a friendly 'lite mode' message and use fallback embeddings on demand."
+            "Defaults to True so the backend boots safely on Render free tier "
+            "(512MB RAM) without env-var config. Set to False on Render Standard "
+            "($7/mo) or any environment with ≥2GB RAM. See BACKEND_DEPLOY.md §A.3."
         ),
     )
     RAG_DISABLED: bool = Field(
-        default=False,
+        default=True,
         description=(
             "Disable ChromaDB + SBERT at runtime too. /chat sends queries "
             "directly to Gemini (with Groq fallback) using a baked-in "
             "bilingual safety knowledge base in the system prompt. "
-            "Combine with LITE_MODE for Render free tier."
+            "Defaults to True so the backend boots safely on Render free "
+            "tier. Set to False on Render Standard or any environment "
+            "where you want full retrieval-augmented chat. See "
+            "BACKEND_DEPLOY.md §A.3."
         ),
     )
     GRAPH_PATH: str = Field(

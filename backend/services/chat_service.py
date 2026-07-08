@@ -12,14 +12,18 @@ Flow:
   6. Call configured LLM (Gemini default; Groq fallback when LLM_PROVIDER=groq
      or Gemini quota is exhausted)
   7. Return generated response
+
+NOTE: rag.retriever is lazily imported inside generate_response() so
+that importing this module does NOT pull chromadb + sentence_transformers
+into RAM. Critical for fitting on Render free tier.
 """
 
 import asyncio
 import logging
 from typing import Optional
 
+# Lightweight imports — no chromadb / SBERT.
 from language.preprocessor import preprocess
-from rag.retriever import retrieve_texts, retrieve_emergency
 from core.config import get_settings
 
 logger = logging.getLogger("safeher.chat_service")
@@ -223,6 +227,9 @@ async def generate_response(query: str) -> dict:
     # Step 2: Retrieve context. We run the embedding + ChromaDB query in
     # a thread so the FastAPI event loop stays free to serve /sos and
     # /incidents concurrently with /chat.
+    # Lazy import — keeps chromadb + sentence_transformers off the
+    # import graph when RAG_DISABLED=true.
+    from rag.retriever import retrieve_texts, retrieve_emergency
     if preprocessed.is_emergency:
         passages = await asyncio.to_thread(retrieve_emergency, query)
     else:

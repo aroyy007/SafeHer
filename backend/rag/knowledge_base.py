@@ -5,20 +5,20 @@ Manages the persistent ChromaDB collection for RAG retrieval.
 
 Design:
   - PersistentClient → survives server restarts
-  - Cosine similarity metric (best for normalized sentence embeddings)
+  - Cosine similarity metric (best for L2-normalized sentence embeddings
+    from the Bengali SBERT model)
   - Auto-seeds on first startup if collection is empty
   - Collection name: "safeher_knowledge"
 
 Path: configured via CHROMA_PATH in .env (default: ./chroma_store)
+
+NOTE: chromadb is lazily imported inside the functions below so that
+importing this module does NOT pull chromadb into RAM. This is the
+single biggest lever for fitting on Render free tier (512 MB).
 """
 
 import logging
 from typing import Optional
-
-import chromadb
-from chromadb.config import Settings as ChromaSettings
-
-from core.config import get_settings
 
 logger = logging.getLogger("safeher.knowledge_base")
 
@@ -27,10 +27,16 @@ _collection = None
 _client = None
 
 
-def get_client() -> chromadb.PersistentClient:
-    """Get or create the ChromaDB client singleton."""
+def get_client():
+    """Get or create the ChromaDB client singleton (lazy import)."""
     global _client
     if _client is None:
+        # Lazy import — keeps chromadb off the boot-time import graph
+        # when RAG_DISABLED=true. Saves ~80 MB of RAM at boot.
+        import chromadb
+        from chromadb.config import Settings as ChromaSettings
+
+        from core.config import get_settings
         settings = get_settings()
         _client = chromadb.PersistentClient(
             path=settings.CHROMA_PATH,

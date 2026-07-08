@@ -13,10 +13,14 @@ The frontend (Mapbox GL JS) uses these GeoJSON features directly
 to render the two routes with different colors and thicknesses.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import List
 
-import networkx as nx
+# LAZY IMPORT: networkx is imported inside the functions that use it,
+# NOT at module top, so importing this module from the lifespan in
+# LITE_MODE does NOT pull networkx into RAM on Render free tier.
 
 logger = logging.getLogger("safeher.geojson")
 

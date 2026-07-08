@@ -18,10 +18,20 @@ Edge cases handled:
   - Graph not loaded → GraphNotLoadedError (caught by exception handler)
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Tuple, List, Optional
 
-import networkx as nx
+# LAZY IMPORT: networkx is imported inside find_routes() and helpers,
+# NOT at module top, so importing this module from the lifespan in
+# LITE_MODE does NOT pull networkx into RAM on Render free tier.
+# (graph_loader does NOT import this module, but services.routing_service
+#  does — so this module is part of the boot import graph.)
+#
+# All function signatures use PEP 563 string forward references to
+# nx.MultiDiGraph so the unquoted type names don't get evaluated at
+# module import time.
 
 from routing.graph_loader import get_graph
 from routing.safety_scorer import haversine_distance
@@ -61,6 +71,9 @@ def find_routes(
         NoPathFoundError: if no walkable path exists
     """
     G = get_graph()
+    # Lazy import — networkx lives behind the function call so the module
+    # import graph stays free of it on Render free tier.
+    import networkx as nx
 
     # Step 1: Snap to nearest graph nodes
     origin, origin_dist = _snap_to_graph(G, olat, olng, "Origin")

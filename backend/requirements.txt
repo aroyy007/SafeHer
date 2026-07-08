@@ -1,8 +1,16 @@
 # ============================================
-# SafeHer Backend — Python Dependencies
+# SafeHer Backend — Slim Python Dependencies
 # ============================================
 # Install: pip install -r requirements.txt
-# Note: Some packages are large (sentence-transformers ~500MB with torch)
+#
+# This is the SLIM install used by default — it boots on Render's
+# 512MB free tier without OOM. The /chat endpoint uses the direct
+# Gemini/Groq path (RAG_DISABLED=true) which doesn't need any of
+# the heavy ML packages below.
+#
+# For the full retrieval-augmented chat (Standard plan / 2GB+):
+#   pip install -r requirements.txt -r requirements-rag.txt
+#   RAG_DISABLED=false LITE_MODE=false
 #
 # IMPORTANT for Render deployment:
 #   - runtime.txt pins Python to 3.12.x
@@ -20,30 +28,16 @@ pydantic-settings>=2.5.0,<3.0.0
 # === Language Processing ===
 langdetect>=1.0.9
 
-# === RAG & AI ===
-sentence-transformers>=2.2.2,<6.0.0
-python-multipart>=0.0.6
-email-validator>=2.1.0
-chromadb>=0.5.23,<2.0.0
+# === LLM Providers (lightweight; only used at request time) ===
 google-generativeai>=0.7.2,<1.0.0
 groq>=0.11.0,<1.0.0
 
-# === Routing & ML ===
-# Use ranges so pip finds wheels for the current Python version.
-osmnx>=2.0.0,<3.0.0
-networkx>=3.0,<5.0
-scikit-learn>=1.5.0
-numpy>=1.26.0
-pandas>=2.2.0
-geopandas>=1.0.0
-shapely>=2.0.0
+# === Utilities ===
+python-multipart>=0.0.6
+email-validator>=2.1.0
+python-dotenv>=1.0.0
+httpx>=0.27.0
 
 # === Database ===
 supabase>=2.9.0,<3.0.0
 aiosqlite>=0.20.0
-
-# === HTTP ===
-httpx>=0.27.0
-
-# === Utilities ===
-python-dotenv>=1.0.0

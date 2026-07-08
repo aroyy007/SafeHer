@@ -20,21 +20,25 @@ IMPORTANT: GraphML round-trips numeric edge attributes as STRINGS
 Without coercing them back to float, networkx.astar_path crashes with
 "unsupported operand type(s) for +: 'int' and 'str'" because it tries
 to sum the heuristic (int) with the edge weight (str).
+
+LAZY IMPORTS:
+  networkx is imported inside load_graph() and inside type-checked
+  helpers, NOT at module top, so importing this module from the
+  FastAPI lifespan (in LITE_MODE) does NOT pull networkx into RAM.
 """
 
 import os
 import logging
 from typing import Optional
 
-import networkx as nx
-
 from core.config import get_settings
 from core.exceptions import GraphNotLoadedError
 
 logger = logging.getLogger("safeher.graph_loader")
 
-# Module-level singleton
-_graph: Optional[nx.MultiDiGraph] = None
+# Module-level singleton — type hints only; actual nx.MultiDiGraph object
+# is created lazily inside load_graph().
+_graph: Optional["object"] = None
 _graph_loaded: bool = False
 _graph_error: Optional[str] = None
 
@@ -51,7 +55,7 @@ _NUMERIC_EDGE_ATTRS = (
 )
 
 
-def _coerce_edge_attrs(G: nx.MultiDiGraph) -> int:
+def _coerce_edge_attrs(G) -> int:
     """Coerce numeric edge attributes from str → float in place.
 
     Returns the number of edges coerced.
@@ -78,6 +82,10 @@ def load_graph() -> bool:
         True if graph loaded successfully, False otherwise
     """
     global _graph, _graph_loaded, _graph_error
+
+    # Lazy import — keeps ~150 MB of networkx out of the boot-time import
+    # graph when LITE_MODE=true (Render free tier).
+    import networkx as nx
 
     settings = get_settings()
     graph_path = settings.GRAPH_PATH
@@ -137,7 +145,7 @@ def load_graph() -> bool:
         return False
 
 
-def get_graph() -> nx.MultiDiGraph:
+def get_graph():
     """
     Return the loaded graph singleton.
 

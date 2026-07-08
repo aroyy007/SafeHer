@@ -1,0 +1,33 @@
+# ============================================
+# SafeHer Backend — RAG add-on dependencies
+# ============================================
+# ONLY install these if you've upgraded to Render Standard ($7/mo,
+# 2GB RAM) or are running on a machine with at least 2GB of free RAM.
+#
+# To enable the full RAG chat:
+#   1. pip install -r requirements.txt -r requirements-rag.txt
+#   2. Set RAG_DISABLED=false and LITE_MODE=false in .env (or Render
+#      dashboard env vars).
+#   3. Restart the backend. /chat will then retrieve from ChromaDB
+#      using Bengali SBERT and pass the top-k passages to Gemini.
+#
+# Do NOT install these on the free tier — they'll OOM the worker
+# during startup (Bengali SBERT is ~440MB and ChromaDB seeding is
+# another ~30-50MB on top of that).
+# ============================================
+
+# === RAG & AI ===
+sentence-transformers>=2.2.2,<6.0.0
+chromadb>=0.5.23,<2.0.0
+
+# === Routing & ML ===
+# osmnx pulls in networkx + geopandas + shapely. We keep these here
+# rather than in the slim requirements because the safe-routing graph
+# is also memory-heavy.
+osmnx>=2.0.0,<3.0.0
+networkx>=3.0,<5.0
+scikit-learn>=1.5.0
+numpy>=1.26.0
+pandas>=2.2.0
+geopandas>=1.0.0
+shapely>=2.0.0

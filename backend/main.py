@@ -25,7 +25,8 @@ from core.exceptions import register_exception_handlers
 # inside the lifespan below, guarded by RAG_DISABLED / LITE_MODE.
 from db.local_db import init_db
 
-# Routers
+# Routers — each router's own imports must remain light. The router
+# modules below deliberately use lazy imports for any heavy SDK.
 from routers.chat import router as chat_router
 from routers.route import router as route_router
 from routers.incidents import router as incident_router
@@ -96,9 +97,40 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Skipping routing graph load (LITE_MODE).")
 
+    # 4. Sanity check — fail fast if a heavy ML module leaked into the
+    # boot import graph. We only run this in RAG_DISABLED / LITE_MODE
+    # because, well, the whole point of those flags is to NOT import
+    # these.
+    if settings.RAG_DISABLED or settings.LITE_MODE:
+        _assert_no_heavy_modules()
+
     logger.info("SafeHer Backend ready for traffic.")
     yield
     logger.info("Shutting down SafeHer Backend...")
+
+
+def _assert_no_heavy_modules() -> None:
+    """
+    Hard guard: if we're running in RAG_DISABLED / LITE_MODE, none of
+    these heavy ML modules may have been imported by the time the
+    lifespan finishes. If any of them is in sys.modules, the relevant
+    boot-time chain was accidentally eager — log a loud warning so
+    the next deploy doesn't OOM silently.
+    """
+    import sys
+    forbidden = ("chromadb", "sentence_transformers", "google.generativeai", "groq", "networkx")
+    leaked = [m for m in forbidden if m in sys.modules]
+    if leaked:
+        logger.warning(
+            f"⚠ Heavy modules imported despite RAG_DISABLED/LITE_MODE: {leaked}. "
+            f"This will inflate RAM on Render free tier — find the eager import "
+            f"and move it inside the function that uses it."
+        )
+    else:
+        logger.info(
+            "✓ Boot import graph is clean: chromadb, sentence_transformers, "
+            "google.generativeai, groq, networkx are all absent from sys.modules."
+        )
 
 
 # Initialize FastAPI
