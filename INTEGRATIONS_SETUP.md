@@ -12,7 +12,7 @@
 3. [LLM provider — Gemini OR Groq](#3-llm-provider--gemini-or-groq)
 4. [HuggingFace — embedding model downloads](#4-huggingface--embedding-model-downloads)
 5. [Supabase — backend persistence (optional, recommended for production)](#5-supabase--backend-persistence-optional-recommended-for-production)
-6. [Firebase Realtime Database — live-location sharing (frontend)](#6-firebase-realtime-database--live-location-sharing-frontend)
+6. [Firebase — RTDB, phone auth, storage](#6-firebase--live-location-phone-otp-and-profile-photo-storage)
 7. [EmailJS — SOS email alerts (frontend)](#7-emailjs--sos-email-alerts-frontend)
 8. [Mapbox — interactive maps (frontend)](#8-mapbox--interactive-maps-frontend)
 9. [Local development vs. production — what changes](#9-local-development-vs-production--what-changes)
@@ -131,59 +131,93 @@ Why: by default SafeHer uses local SQLite (`backend/data/safeher.db`). It works 
 
 1. Open <https://supabase.com/dashboard> → **New project**.
 2. Pick the closest region (Singapore for Bangladesh users), give it a DB password (save it!), wait ~2 min for provisioning.
-3. Once the project is `ACTIVE`, copy two values:
-   - **Project URL** — `Settings` → `API` → `Project URL`
-   - **service_role key** — `Settings` → `API` → `Project API keys` → `service_role` (**NOT** the `anon` key; we need full server-side access)
+3. Once the project is `ACTIVE`, copy three values from **Settings → API**:
+   - **Project URL** — e.g. `https://abc.supabase.co`
+   - **Publishable / anon key** — goes into `SUPABASE_KEY` (browser-safe, RLS-restricted)
+   - **service_role key** — goes into `SUPABASE_SERVICE_KEY` (backend only, bypasses RLS)
+4. Also copy **JWT Secret** from **Settings → API → JWT Secret** → goes into `SUPABASE_JWT_SECRET`. The backend uses this to verify frontend-issued access tokens without any network round-trip.
 
 ### 5.2 Create tables
 
 In Supabase → **SQL Editor**, paste this once and click **Run**:
 
 ```sql
--- Incidents (reports of unsafe spots)
-create table if not exists public.incidents (
-  id uuid primary key default gen_random_uuid(),
-  session_id text not null,
-  lat double precision not null,
-  lng double precision not null,
-  category text not null,
-  description text,
-  timestamp bigint not null,
-  created_at timestamptz default now()
-);
-create index if not exists incidents_geo_idx on public.incidents (lat, lng);
+create extension if not exists "pgcrypto";
 
--- SOS log (audit trail of every SOS activation)
-create table if not exists public.sos_log (
-  id uuid primary key default gen_random_uuid(),
-  session_id text not null,
-  lat double precision not null,
-  lng double precision not null,
-  trigger_method text not null,
-  lang_at_trigger text default 'unknown',
-  timestamp bigint not null,
-  client_ip text,
-  created_at timestamptz default now()
-);
-
--- Users (optional — SQLite already covers this for the demo)
+-- Users (auth-bound; the password_hash column is unused unless you
+-- use the legacy HMAC path; Supabase Auth manages its own auth.users table)
 create table if not exists public.users (
-  id uuid primary key default gen_random_uuid(),
-  email text unique not null,
-  name text not null,
-  phone text,
-  password_hash text not null,
-  created_at timestamptz default now()
+  id              uuid primary key default gen_random_uuid(),
+  name            text        not null,
+  email           citext      not null unique,
+  phone           text,
+  password_hash   text        not null,
+  home_area       text,                                -- neighborhood context
+  photo_url       text,                                -- public URL of profile photo
+  phone_verified  boolean     not null default false,
+  created_at      timestamptz not null default now()
 );
+
+-- Backfill columns for older SafeHer deployments (idempotent)
+alter table public.users add column if not exists home_area       text;
+alter table public.users add column if not exists photo_url       text;
+alter table public.users add column if not exists phone_verified  boolean not null default false;
 
 create table if not exists public.emergency_contacts (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references public.users(id) on delete cascade,
-  name text not null,
-  phone text not null,
-  email text,
-  relation text default 'Friend'
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.users(id) on delete cascade,
+  name        text not null,
+  phone       text not null,
+  email       text,                                    -- optional; used for SOS EmailJS
+  relation    text default 'Friend',
+  created_at  timestamptz not null default now()
 );
+create index if not exists idx_emergency_contacts_user
+  on public.emergency_contacts(user_id);
+
+create table if not exists public.sos_events (
+  id                bigserial primary key,
+  session_id        text not null,
+  lat               double precision,
+  lng               double precision,
+  timestamp_ms      bigint,
+  trigger_method    text,                             -- button_hold | voice_command | disguise_mode | test
+  lang_at_trigger   text,
+  created_at        timestamptz not null default now()
+);
+create index if not exists idx_sos_events_session
+  on public.sos_events(session_id);
+
+-- Optional, for Trusted Circles
+create table if not exists public.circles (
+  id          uuid primary key default gen_random_uuid(),
+  owner_id    uuid not null references public.users(id) on delete cascade,
+  name        text not null,
+  color       text default '#FF4D6D',
+  created_at  timestamptz not null default now()
+);
+create index if not exists idx_circles_owner on public.circles(owner_id);
+
+create table if not exists public.circle_members (
+  id          uuid primary key default gen_random_uuid(),
+  circle_id   uuid not null references public.circles(id) on delete cascade,
+  name        text not null,
+  contact     text not null,
+  relation    text,
+  created_at  timestamptz not null default now()
+);
+create index if not exists idx_members_circle on public.circle_members(circle_id);
+
+-- Row Level Security — the service-role key bypasses RLS, but on the
+-- path where the anon key is used (or Supabase Auth issues a JWT to
+-- the browser), these policies prevent cross-user reads.
+alter table public.users             enable row level security;
+alter table public.emergency_contacts enable row level security;
+alter table public.sos_events        enable row level security;
+
+-- Example: a user can read their own user row using their Supabase Auth uid
+-- create policy "users read own" on public.users
+--   for select using (auth.uid() = id);
 ```
 
 ### 5.3 Wire it up
@@ -193,7 +227,9 @@ In `backend/.env`:
 ```
 USE_SUPABASE=true
 SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
-SUPABASE_KEY=eyJhbGciOi…your-service-role-key…
+SUPABASE_KEY=sb_publishable_…                       # publishable / anon key (browser-safe)
+SUPABASE_SERVICE_KEY=eyJhbGciOi…service-role…       # service-role key (backend only)
+SUPABASE_JWT_SECRET=your-project-jwt-secret         # for verifying frontend-issued JWTs
 ```
 
 Restart uvicorn. The backend will switch from SQLite to Supabase automatically — the routers don't change.
@@ -211,11 +247,20 @@ If you see `Supabase URL and Key must be set in .env`, restart uvicorn so Pydant
 
 ---
 
-## 6. Firebase Realtime Database — live-location sharing (frontend)
+## 6. Firebase — live-location, phone OTP, and profile photo storage
 
-Why: the `/track` page lets a trusted contact watch the user's live location on a map. This needs a low-latency pub/sub — Realtime Database is perfect, ~free tier covers 100k simultaneous connections.
+Why: SafeHer uses three Firebase services in the browser:
 
-**Frontend-only.** No backend changes needed.
+1. **Realtime Database** — the `/track` page lets a trusted contact watch
+   the user's live location on a map. This needs a low-latency pub/sub —
+   RTDB is perfect, free tier covers 100k simultaneous connections.
+2. **Authentication (Phone)** — phone OTP verification during signup.
+   The Firebase ID token (JWT) is attached to API calls as `Bearer`.
+3. **Storage** — the user's profile photo is uploaded here and shown on
+   the `/track` page during SOS.
+
+**Frontend-only.** No backend changes needed (the backend verifies the
+Supabase Auth JWT, not Firebase's — they coexist cleanly).
 
 ### 6.1 Create a Firebase project
 
@@ -271,13 +316,53 @@ Restart the frontend dev server with `npm run dev`.
 
 If nothing moves, check the browser console — `isFirebaseReady` should be `true` (visible in `firebaseClient.js`).
 
+### 6.4 Enable Firebase Authentication (for phone OTP)
+
+SafeHer's signup flow uses Firebase phone OTP to verify identity. This is mandatory for production.
+
+1. In Firebase Console → **Build → Authentication** → **Get started**.
+2. Sign-in method tab → **Phone** → enable.
+3. Test phone: Firebase provides a couple of test numbers you can use during the demo so you don't burn real SMS quota. **Add at least one test number**:
+   - Phone: `+8801712345678`
+   - Verification code: `123456`
+4. For your own real BD phone, just enter it in the signup flow.
+
+### 6.5 Enable Firebase Storage (for profile photos)
+
+SafeHer's signup uploads the user's profile photo so it can be displayed on `/track`.
+
+1. Firebase Console → **Build → Storage** → **Get started** → start in production mode.
+2. After creation, click the **Rules** tab and replace with:
+
+   ```javascript
+   rules_version = '2';
+   service firebase.storage {
+     match /b/{bucket}/o {
+       // Public read for profile photos so /track page can render them
+       match /profile_photos/{allPaths=**} {
+         allow read: if true;
+         allow write: if request.auth != null;
+       }
+     }
+   }
+   ```
+
+3. Click **Publish**.
+
+### Verify phone OTP + Storage
+
+1. Sign up in the app with a real BD number you control.
+2. You'll receive an SMS with the verification code (Firebase default template — customize the text in **Authentication → Templates → Phone number verification**).
+3. After verification, you'll be prompted to upload a photo. The upload should land in `profile_photos/<uid>/<timestamp>.jpg` in your Storage bucket, accessible at a public URL.
+4. On the `/track` page after a SOS trigger, that photo should appear in the glass header above the map.
+
 ---
 
 ## 7. EmailJS — SOS email alerts (frontend)
 
 Why: when SOS is triggered, SafeHer emails the user's emergency contacts with their live map link. EmailJS lets us send from the browser using Gmail/SendGrid without writing a backend mail server.
 
-**Frontend-only.** The demo currently *fakes* this (logs to console) so judges always see something happen even if EmailJS isn't set up. To make it real:
+**Already wired.** The frontend `EmergencyContext.jsx` now calls `emailjs.send()` for real, one email per trusted contact. To make it work you only need to paste your EmailJS keys into `frontend/.env`:
 
 ### 7.1 Create an EmailJS account
 
@@ -289,19 +374,9 @@ Why: when SOS is triggered, SafeHer emails the user's emergency contacts with th
 ### 7.2 Create the email template
 
 1. In EmailJS dashboard → **Email Templates** → **Create new template**.
-2. Subject: `SafeHer SOS — {{to_name}} needs help NOW`
-3. Body (plain text version):
-   ```
-   EMERGENCY ALERT
-
-   {{to_name}}, SafeHer has been triggered.
-
-   {{message}}
-
-   Time: {{time}}
-   ```
-4. Variables used: `to_name`, `message`, `time`. (The frontend passes these — see `EmergencyContext.jsx`.)
-5. Save. Copy the **Template ID** (looks like `template_xyz789`).
+2. Subject: `🚨 SOS ALERT — {{from_name}} needs help NOW`
+3. Switch the body editor to **HTML mode** and paste the full HTML from the `PRE_DEMO_CHANGES.md` doc (look for "Email body (HTML)"). The variables it uses: `to_name`, `to_email`, `from_name`, `from_phone`, `time`, `location_address`, `tracking_link`.
+4. Save. Copy the **Template ID** (looks like `template_xyz789`).
 
 ### 7.3 Get your public key
 
@@ -309,7 +384,7 @@ Why: when SOS is triggered, SafeHer emails the user's emergency contacts with th
 
 ### 7.4 Wire it up
 
-In `frontend/.env.local`:
+The frontend already reads these env vars; you only need to fill in `frontend/.env`:
 
 ```
 VITE_EMAILJS_SERVICE_ID=service_abc123
@@ -317,25 +392,15 @@ VITE_EMAILJS_TEMPLATE_ID=template_xyz789
 VITE_EMAILJS_PUBLIC_KEY=abcdefghij_KLMNOPQR
 ```
 
-Then in `frontend/src/contexts/EmergencyContext.jsx`, replace lines 64-66 (the fake `setTimeout`) with the real call (already in the comments, lines 68-81):
-
-```jsx
-await emailjs.send(
-  import.meta.env.VITE_EMAILJS_SERVICE_ID,
-  import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
-  templateParams,
-  import.meta.env.VITE_EMAILJS_PUBLIC_KEY,
-);
-```
-
 Restart dev server.
 
 ### Verify it works
 
-1. Set up at least one emergency contact with a real email at `/account` or via the auth flow.
-2. Trigger SOS. Within ~5 s the contact receives an email at the address they signed up with.
+1. Sign up and add at least one emergency contact with a real email.
+2. Trigger SOS. Within ~5 s the contact receives the SafeHer-branded email with a working tracking link.
+3. The tracking link uses the recipient's name and points to `/track?session=…` — opening it should show the user's profile photo + name in the glass header above the map.
 
-If nothing arrives in 30 s, check the **EmailJS Logs** tab — common causes: Gmail daily limit hit, unauthorized Gmail OAuth, or template variable mismatch (`message` empty).
+If nothing arrives in 30 s, check the **EmailJS Logs** tab — common causes: Gmail daily limit hit, unauthorized Gmail OAuth, or a template variable mismatch.
 
 ---
 
@@ -379,8 +444,9 @@ Visit any page that uses `useMapbox`. If tiles are gray and you see `[Mapbox tok
 | Frontend `VITE_API_URL` | `http://localhost:8000`        | `https://safeher-api.onrender.com`                       |
 | DB                 | SQLite file in `backend/data/`     | Supabase (set `USE_SUPABASE=true`)                       |
 | Live location      | optional — works without Firebase   | required for /track on real devices                      |
-| SOS email          | fake (console)                      | real via EmailJS                                          |
+| SOS email          | real via EmailJS (if keys set)       | real via EmailJS                                          |
 | Map tiles          | Mapbox or OSM                       | Mapbox only (OSM too aggressive for prod load)            |
+| Auth               | legacy HMAC token (X-Session-Id OK)  | Supabase JWT (HS256) recommended                          |
 | Secret keys        | `secrets.token_urlsafe(48)`        | same — but **never** commit `.env` to git                |
 
 **Render env vars** (set in dashboard, NOT in `.env`):
@@ -388,17 +454,19 @@ Visit any page that uses `useMapbox`. If tiles are gray and you see `[Mapbox tok
 ```
 LLM_PROVIDER=groq
 GROQ_API_KEY=gsk_…
-GEMINI_API_KEY=AIzaSy…           # optional, used as fallback if Groq 429s
+GEMINI_API_KEY=AIzaSy…              # optional, used as fallback if Groq 429s
 HUGGINGFACE_API_KEY=hf_…
 USE_SUPABASE=true
 SUPABASE_URL=https://…
-SUPABASE_KEY=eyJ…
+SUPABASE_KEY=sb_publishable_…       # publishable / anon key (browser-safe)
+SUPABASE_SERVICE_KEY=eyJ…           # service-role key (backend only)
+SUPABASE_JWT_SECRET=…               # for verifying frontend access tokens
 SAFEHER_SECRET_KEY=<openssl rand -base64 48>
 SAFEHER_PASSWORD_SALT=<openssl rand -base64 32>
 ALLOWED_ORIGINS=https://safeher.app,https://www.safeher.app
 ```
 
-**Vercel env vars** (set in dashboard):
+**Netlify / Vercel env vars** (set in dashboard):
 
 ```
 VITE_API_URL=https://safeher-api.onrender.com
@@ -462,6 +530,76 @@ npm run build
 ```
 
 If any step fails, jump to the matching section in the **Troubleshooting cheat sheet** below.
+
+---
+
+## 10b. Auth-specific smoke tests
+
+Run these after completing the basic checklist above; they exercise the
+new (post-hardening) auth path.
+
+```bash
+# --- Auth (run from backend/, with venv active) ---
+
+# A. Signup with all new fields
+TOKEN=$(curl -sS -X POST http://localhost:8000/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name":"Nadia",
+    "email":"nadia@example.com",
+    "phone":"+8801712345678",
+    "password":"hackathon99",
+    "home_area":"Halishahar",
+    "photo_url":"https://example.com/p.jpg",
+    "phone_verified":true
+  }' | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
+echo "TOKEN length: ${#TOKEN}"
+
+# B. /auth/me round-trips the new fields
+curl -sS http://localhost:8000/auth/me -H "Authorization: Bearer $TOKEN" \
+  | python3 -c "
+import sys, json
+u = json.load(sys.stdin)['user']
+print('photo_url:', u.get('photo_url'))
+print('home_area:', u.get('home_area'))
+print('phone_verified:', u.get('phone_verified'))
+assert all([u.get('photo_url'), u.get('home_area'), u.get('phone_verified') is True])
+print('OK new fields present')
+"
+
+# C. No auth => 401
+curl -sS -o /dev/null -w "%{http_code}\n" http://localhost:8000/auth/me
+# Expected: 401
+
+# D. Garbage token => 401
+curl -sS -o /dev/null -w "%{http_code}\n" \
+  http://localhost:8000/auth/me -H "Authorization: Bearer notatoken"
+# Expected: 401
+
+# E. Disposable email blocked
+curl -sS -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8000/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"name":"X","email":"x@mailinator.com","phone":"+8801711111111","password":"hackathon99"}'
+# Expected: 400
+
+# F. Add a contact
+curl -sS -X POST http://localhost:8000/auth/contacts \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"Mum","phone":"+8801811111111","email":"mum@example.com","relation":"Family"}' \
+  | python3 -m json.tool
+
+# G. Circle (dual-mode auth)
+curl -sS -X POST http://localhost:8000/circles/ \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"Family","color":"#e8476a"}' | python3 -m json.tool
+# Expected: 201 with id, owner_id matching the user_id
+```
+
+For the full end-to-end phone OTP + photo upload flow you must test in a
+browser — those features depend on Firebase auth/storage and can't be
+exercised via curl. The `PRE_DEMO_CHANGES.md` doc walks through it.
+
+```
 
 ---
 

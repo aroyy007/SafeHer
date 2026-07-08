@@ -48,21 +48,68 @@
 
 ## Authentication
 
-SafeHer uses a **device-local session model** for the hackathon. There is no traditional signup or login.
+SafeHer uses a **dual-mode auth model**:
+
+1. **Production (recommended):** a Supabase Auth JWT (HS256) attached as
+   `Authorization: Bearer <token>`. Verified locally against
+   `SUPABASE_JWT_SECRET` — no network round-trip.
+2. **Hackathon / dev fallback:** the legacy SafeHer HMAC token
+   (`safeher.token` in localStorage) or the `X-Session-Id` header for
+   unauthenticated endpoints.
+
+### Headers
 
 | Header | Required for | Notes |
 |---|---|---|
-| `X-Session-Id` | Trusted Circles endpoints, incident reports | A UUID-like string (`dev-...`, `usr_...`, etc.). The frontend auto-generates and persists this in `localStorage`. |
+| `Authorization: Bearer <jwt>` | `/auth/*`, `/circles/*` | Supabase access token OR legacy SafeHer HMAC token. The frontend auto-attaches it. |
+| `X-Session-Id` | trusted-circle endpoints when no JWT is present, incident reports, anonymous SOS | UUID-like string (`dev-...`, `usr_...`). The frontend auto-generates and persists this in `localStorage`. |
 
-Example:
+Example with JWT (production):
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c3ItMTIzIiw...
+```
+
+Example with X-Session-Id (dev fallback):
 
 ```
 X-Session-Id: dev-abc123def456
 ```
 
-If `X-Session-Id` is missing or invalid on a protected endpoint, the API returns **`401 Unauthorized`**.
+If neither is valid on a protected endpoint, the API returns
+**`401 Unauthorized`** with `{"detail": "Missing or invalid auth"}` (or
+`"Invalid token"` / `"Missing token"` depending on the endpoint).
 
-> For production deployment, replace the localStorage UUID with a JWT bound to a Supabase Auth user.
+### Login flow
+
+```http
+POST /auth/login
+Content-Type: application/json
+
+{ "email": "nadia@example.com", "password": "hackathon99" }
+```
+
+Returns:
+
+```json
+{
+  "token": "594fd...<HMAC signed>",
+  "user": {
+    "id": "594fd...",
+    "name": "Nadia",
+    "email": "nadia@example.com",
+    "phone": "+8801712345678",
+    "home_area": "Halishahar",
+    "photo_url": "https://storage.googleapis.com/.../photo.jpg",
+    "phone_verified": true
+  }
+}
+```
+
+The frontend persists the `token` to `localStorage.safeher.token` and
+attaches it as `Authorization: Bearer` on every subsequent request.
+For Supabase Auth, the JWT lives at `localStorage.safeher.jwt` and is
+preferred when present.
 
 ---
 
@@ -603,9 +650,155 @@ If the curated file is missing, returns an empty `FeatureCollection`.
 
 ---
 
+## Authentication
+
+Authentication endpoints for signup, login, and managing emergency contacts.
+All `/auth/*` endpoints require a JWT or HMAC token for `GET /auth/me`,
+`POST /auth/contacts`, and `DELETE /auth/contacts/{id}`. Signup and login
+are public.
+
+### `POST /auth/signup`
+
+**Create a new SafeHer account. Three-step flow:**
+
+1. Client collects basic info + home area.
+2. Client verifies the phone via Firebase OTP (separate endpoint — see
+   the Firebase Auth docs).
+3. Client uploads the profile photo to Firebase Storage (separate —
+   see Firebase Storage docs).
+4. Client calls this endpoint with all collected data.
+
+```http
+POST /auth/signup HTTP/1.1
+Content-Type: application/json
+
+{
+  "name": "Nadia Hossain",
+  "email": "nadia@example.com",
+  "phone": "+8801712345678",
+  "password": "hackathon99",
+  "home_area": "Halishahar",
+  "photo_url": "https://firebasestorage.../photo.jpg",
+  "phone_verified": true
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `name` | yes | Trimmed; non-empty |
+| `email` | yes | Validated; disposable domains blocked |
+| `phone` | yes | E.164 format preferred; `+8801XXXXXXXXX` |
+| `password` | yes | Min 8 chars; cannot be all-numeric |
+| `home_area` | no | Free text — used for map centering + chatbot context |
+| `photo_url` | no | Public URL of the uploaded profile photo |
+| `phone_verified` | no | Should be `true` if Firebase OTP succeeded |
+
+**Response 201:**
+
+```json
+{
+  "token": "594fd...<HMAC signed>",
+  "user": {
+    "id": "594fd...",
+    "name": "Nadia Hossain",
+    "email": "nadia@example.com",
+    "phone": "+8801712345678",
+    "home_area": "Halishahar",
+    "photo_url": "https://firebasestorage.../photo.jpg",
+    "phone_verified": true
+  }
+}
+```
+
+**Errors:**
+- `400` — `{"detail": "Disposable / temporary email addresses are not allowed..."}`
+- `400` — `{"detail": "Password must be at least 8 characters"}`
+- `400` — `{"detail": "Password cannot be entirely numeric"}`
+- `400` — `{"detail": "Email already registered"}`
+
+### `POST /auth/login`
+
+```http
+POST /auth/login HTTP/1.1
+Content-Type: application/json
+
+{ "email": "nadia@example.com", "password": "hackathon99" }
+```
+
+**Response 200:** Same shape as signup, minus the request fields.
+
+**Errors:**
+- `401` — `{"detail": "Invalid credentials"}`
+
+### `GET /auth/me`
+
+Returns the current user + their emergency contacts. Requires `Authorization: Bearer <token>`.
+
+```http
+GET /auth/me HTTP/1.1
+Authorization: Bearer 594fd...<HMAC signed>
+```
+
+**Response 200:**
+
+```json
+{
+  "user": {
+    "id": "594fd...",
+    "name": "Nadia Hossain",
+    "email": "nadia@example.com",
+    "phone": "+8801712345678",
+    "home_area": "Halishahar",
+    "photo_url": "https://firebasestorage.../photo.jpg",
+    "phone_verified": true
+  },
+  "contacts": [
+    {
+      "id": "f93eaebf...",
+      "name": "Mum",
+      "phone": "+8801811111111",
+      "email": "mum@example.com",
+      "relation": "Family"
+    }
+  ]
+}
+```
+
+### `POST /auth/contacts`
+
+Add an emergency contact for the current user.
+
+```http
+POST /auth/contacts HTTP/1.1
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Mum",
+  "phone": "+8801811111111",
+  "email": "mum@example.com",
+  "relation": "Family"
+}
+```
+
+**Response 201:** The created contact (with assigned `id` and `user_id`).
+
+### `DELETE /auth/contacts/{contact_id}`
+
+Remove an emergency contact.
+
+```http
+DELETE /auth/contacts/f93eaebf-c0ff-4c6f-986a-87727e1a6563 HTTP/1.1
+Authorization: Bearer <token>
+```
+
+**Response 200:** `{"status": "deleted"}`
+
+---
+
 ## Trusted Circles
 
-Trusted Circles are per-device groupings of contacts (family, friends, roommates) that get SOS alerts. All endpoints require `X-Session-Id`.
+Trusted Circles are per-device groupings of contacts (family, friends, roommates) that get SOS alerts. Endpoints accept **either** `Authorization: Bearer <jwt>` (production) **or** `X-Session-Id` (dev fallback).
 
 ### `POST /circles/`
 

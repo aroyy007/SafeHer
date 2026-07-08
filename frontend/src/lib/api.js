@@ -3,6 +3,10 @@
  *
  * Every fetch to the FastAPI backend goes through this module so the
  * base URL is environment-driven (VITE_API_URL) instead of hard-coded.
+ *
+ * Auth: prefers a Supabase JWT (or legacy SafeHer token) stored in
+ * localStorage under `safeher.token`. Falls back to an X-Session-Id
+ * UUID for hackathon dev mode.
  */
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -45,7 +49,32 @@ function getSessionId() {
   return sid;
 }
 
-const sessionHeaders = () => ({ 'X-Session-Id': getSessionId() });
+/**
+ * Read the auth token from localStorage. Order of preference:
+ *   1. `safeher.jwt`     — Supabase access token (HS256 JWT)
+ *   2. `safeher.token`   — legacy SafeHer HMAC token
+ */
+function getAuthToken() {
+  return (
+    localStorage.getItem('safeher.jwt') ||
+    localStorage.getItem('safeher.token') ||
+    null
+  );
+}
+
+/**
+ * Build auth headers. If we have a JWT, send it as Authorization: Bearer.
+ * Always also send X-Session-Id so rate-limiter and dev-mode fallbacks work.
+ */
+const authHeaders = () => {
+  const headers = { 'X-Session-Id': getSessionId() };
+  const token = getAuthToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+};
+
+// Legacy alias (kept for any callers still using sessionHeaders)
+const sessionHeaders = authHeaders;
 
 export const api = {
   base: API_BASE,
@@ -94,35 +123,35 @@ export const api = {
 
   circles: {
     list: () =>
-      request('/circles/', { headers: sessionHeaders() }),
+      request('/circles/', { headers: authHeaders() }),
 
     create: ({ name, color }) =>
       request('/circles/', {
         method: 'POST',
         body: JSON.stringify({ name, color }),
-        headers: sessionHeaders(),
+        headers: authHeaders(),
       }),
 
     get: (id) =>
-      request(`/circles/${id}`, { headers: sessionHeaders() }),
+      request(`/circles/${id}`, { headers: authHeaders() }),
 
     delete: (id) =>
       request(`/circles/${id}`, {
         method: 'DELETE',
-        headers: sessionHeaders(),
+        headers: authHeaders(),
       }),
 
     addMember: (circleId, { name, contact, relation }) =>
       request(`/circles/${circleId}/members`, {
         method: 'POST',
         body: JSON.stringify({ name, contact, relation }),
-        headers: sessionHeaders(),
+        headers: authHeaders(),
       }),
 
     removeMember: (circleId, memberId) =>
       request(`/circles/${circleId}/members/${memberId}`, {
         method: 'DELETE',
-        headers: sessionHeaders(),
+        headers: authHeaders(),
       }),
   },
 
@@ -146,8 +175,11 @@ export const api = {
   auth: {
     login: (credentials) => request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
     signup: (data) => request('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
-    getMe: (token) => request('/auth/me', { headers: { Authorization: `Bearer ${token}` } }),
-    addContact: (token, contact) => request('/auth/contacts', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(contact) }),
-    deleteContact: (token, id) => request(`/auth/contacts/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }),
+    // Reads token from localStorage automatically (Supabase JWT first, then legacy HMAC)
+    getMe: () => request('/auth/me', { headers: authHeaders() }),
+    addContact: (contact) =>
+      request('/auth/contacts', { method: 'POST', headers: authHeaders(), body: JSON.stringify(contact) }),
+    deleteContact: (id) =>
+      request(`/auth/contacts/${id}`, { method: 'DELETE', headers: authHeaders() }),
   }
 };

@@ -28,9 +28,22 @@ async def init_db():
                 email TEXT UNIQUE NOT NULL,
                 phone TEXT,
                 password_hash TEXT NOT NULL,
+                home_area TEXT,
+                photo_url TEXT,
+                phone_verified INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # Idempotent column adds for older databases (safe if already present)
+        for _col, _type in [
+            ("home_area", "TEXT"),
+            ("photo_url", "TEXT"),
+            ("phone_verified", "INTEGER DEFAULT 0"),
+        ]:
+            try:
+                await db.execute(f"ALTER TABLE users ADD COLUMN {_col} {_type}")
+            except Exception:
+                pass
         await db.execute("""
             CREATE TABLE IF NOT EXISTS emergency_contacts (
                 id TEXT PRIMARY KEY,

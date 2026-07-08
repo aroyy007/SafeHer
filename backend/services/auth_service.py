@@ -164,7 +164,15 @@ def _validate_signup_inputs(name: str, email: str, phone: str, password: str) ->
         raise ValueError("Password cannot be entirely numeric")
 
 
-async def create_user(name: str, email: str, phone: str, password: str) -> dict:
+async def create_user(
+    name: str,
+    email: str,
+    phone: str,
+    password: str,
+    home_area: str = "",
+    photo_url: str = "",
+    phone_verified: bool = False,
+) -> dict:
     _validate_signup_inputs(name, email, phone, password)
 
     # Normalize email so duplicate detection is case-insensitive.
@@ -184,13 +192,32 @@ async def create_user(name: str, email: str, phone: str, password: str) -> dict:
 
         try:
             await db.execute(
-                "INSERT INTO users (id, name, email, phone, password_hash) VALUES (?, ?, ?, ?, ?)",
-                (user_id, name.strip(), email_norm, phone.strip(), pwd_hash)
+                """INSERT INTO users
+                   (id, name, email, phone, password_hash, home_area, photo_url, phone_verified)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    user_id,
+                    name.strip(),
+                    email_norm,
+                    phone.strip(),
+                    pwd_hash,
+                    (home_area or "").strip(),
+                    (photo_url or "").strip(),
+                    1 if phone_verified else 0,
+                ),
             )
             await db.commit()
         except aiosqlite.IntegrityError:
             raise ValueError("Email already registered")
-    return {"id": user_id, "name": name.strip(), "email": email_norm, "phone": phone.strip()}
+    return {
+        "id": user_id,
+        "name": name.strip(),
+        "email": email_norm,
+        "phone": phone.strip(),
+        "home_area": (home_area or "").strip(),
+        "photo_url": (photo_url or "").strip(),
+        "phone_verified": bool(phone_verified),
+    }
 
 async def authenticate_user(email: str, password: str) -> Optional[dict]:
     if not email or not password:
@@ -213,15 +240,29 @@ async def authenticate_user(email: str, password: str) -> Optional[dict]:
                     (new_hash, row["id"]),
                 )
                 await db.commit()
-            return dict(row)
+            user = dict(row)
+            # Normalize SQLite integer column → Python bool so the API
+            # contract is consistent across `/auth/signup`, `/auth/login`
+            # and `/auth/me`.
+            user["phone_verified"] = bool(user.get("phone_verified"))
+            return user
     return None
 
 async def get_user_by_id(user_id: str) -> Optional[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        cur = await db.execute("SELECT id, name, email, phone FROM users WHERE id = ?", (user_id,))
+        cur = await db.execute(
+            """SELECT id, name, email, phone, home_area, photo_url, phone_verified
+               FROM users WHERE id = ?""",
+            (user_id,),
+        )
         row = await cur.fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        d = dict(row)
+        # Normalize SQLite 0/1 to bool for the API
+        d["phone_verified"] = bool(d.get("phone_verified"))
+        return d
 
 # Emergency Contacts
 async def add_emergency_contact(user_id: str, name: str, phone: str, email: str, relation: str) -> dict:

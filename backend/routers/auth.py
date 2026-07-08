@@ -24,6 +24,10 @@ class SignupRequest(BaseModel):
     email: EmailStr
     phone: str
     password: str
+    home_area: str = ""
+    photo_url: str = ""
+    phone_verified: bool = False
+
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -37,13 +41,35 @@ class ContactRequest(BaseModel):
 
 # --- Dependencies ---
 async def get_current_user(authorization: str = Header(None)):
+    """
+    Resolve the caller to a user dict.
+
+    Tries (in order):
+      1. Supabase JWT (HS256, signed with SUPABASE_JWT_SECRET)
+      2. Legacy SafeHer HMAC token (still works for local dev / demo)
+
+    Returns 401 if neither path yields a valid user.
+    """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing token")
-    token = authorization.split(" ")[1]
-    user_id = verify_token(token)
+    token = authorization.split(" ", 1)[1].strip()
+
+    user_id = None
+
+    # 1) Supabase JWT path
+    try:
+        from db.supabase_client import verify_supabase_jwt
+        user_id = verify_supabase_jwt(token)
+    except Exception:
+        user_id = None
+
+    # 2) Legacy HMAC path
+    if not user_id:
+        user_id = verify_token(token)
+
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token")
-    
+
     user = await get_user_by_id(user_id)
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
@@ -54,7 +80,15 @@ async def get_current_user(authorization: str = Header(None)):
 @router.post("/signup", dependencies=[Depends(auth_rate_limit())])
 async def signup(req: SignupRequest):
     try:
-        user = await create_user(req.name, req.email, req.phone, req.password)
+        user = await create_user(
+            name=req.name,
+            email=req.email,
+            phone=req.phone,
+            password=req.password,
+            home_area=req.home_area,
+            photo_url=req.photo_url,
+            phone_verified=req.phone_verified,
+        )
         token = generate_token(user["id"])
         return {"token": token, "user": user}
     except ValueError as e:

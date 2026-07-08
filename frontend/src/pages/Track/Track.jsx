@@ -21,6 +21,7 @@ export function Track() {
   const [missing, setMissing] = useState(false);
   const [toast, setToast] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [profile, setProfile] = useState(null);
   const toastTimer = useRef(null);
 
   useEffect(() => {
@@ -35,6 +36,10 @@ export function Track() {
         setMissing(false);
       } else {
         setMissing(true);
+      }
+      // Profile lives in the same node (locations/<id>/profile)
+      if (data && data.profile) {
+        setProfile(data.profile);
       }
     });
     return unsubscribe;
@@ -92,6 +97,7 @@ export function Track() {
         <EmptyState />
       ) : (
         <>
+          <ProfileHeader profile={profile} />
           <StatusBanner
             isOnline={!!isOnline}
             isStale={!!isStale}
@@ -119,6 +125,42 @@ export function Track() {
 }
 
 /* ---- Sub-components ---- */
+
+function ProfileHeader({ profile }) {
+  // Renders a prominent photo + name at the top of the tracking page
+  // so the trusted contact can confirm at a glance that the alert is
+  // for the right person. If no profile is pushed yet (Firebase cold
+  // start), we still show a SafeHer-branded placeholder.
+  const name = profile?.name || 'SafeHer user';
+  const photoUrl = profile?.photoUrl || '';
+  const phone = profile?.phone || '';
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() || '')
+    .join('');
+
+  return (
+    <div className="track__profile" role="region" aria-label="Person sharing location">
+      <div className="track__profile-avatar">
+        {photoUrl ? (
+          <img src={photoUrl} alt={name} />
+        ) : (
+          <span className="track__profile-initials" aria-hidden="true">
+            {initials || 'SH'}
+          </span>
+        )}
+        <span className="track__profile-pulse" aria-hidden="true" />
+      </div>
+      <div className="track__profile-meta">
+        <div className="track__profile-eyebrow">Live location shared by</div>
+        <div className="track__profile-name">{name}</div>
+        {phone && <div className="track__profile-phone">{phone}</div>}
+      </div>
+    </div>
+  );
+}
 
 function EmptyState() {
   return (

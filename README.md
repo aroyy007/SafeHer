@@ -53,11 +53,11 @@ The judges at CUET SciBlitz recognize the problem instantly. The job of SafeHer 
 | **Voice command** (`বাঁচাও`) | ~0.8 s | Bengali voice activation via Web Speech API |
 | **Calculator disguise** | ~1 s | Triple-tap header swaps the UI to a calculator; long-press `=` fires SOS |
 
-Each trigger (a) logs an audit trail server-side, (b) sends emails/SMS to your trusted circle via EmailJS, and (c) starts a Firebase-backed live-location share session.
+Each trigger (a) logs an audit trail server-side, (b) sends personalized emails to your trusted circle via EmailJS (one email per contact, each with the recipient's name + a unique live-tracking link), and (c) starts a Firebase-backed live-location share session that pushes the user's profile photo + name into the same RTDB node so trusted contacts see **"It's really Nadia"** alongside the map.
 
 ### 2. Live location share — no install required for family
 
-When SOS fires, the recipient gets a short link like `https://safeher.app/track/abc123`. Anyone with the link sees a Mapbox dark map with a pulsing marker, a "live / stale / offline" banner, and one-tap call buttons for **999** (National Emergency) and **10921** (Women & Child Helpline). The session lives in Firebase Realtime Database — no app, no sign-up, no friction.
+When SOS fires, the recipient gets a short link like `https://safeher.app/track/abc123`. Anyone with the link sees a Leaflet/OSM map with a pulsing marker, a **prominent profile header** (circular photo + full name + phone with a red pulsing ring), a "live / stale / offline" banner, and one-tap call buttons for **999** (National Emergency) and **10921** (Women & Child Helpline). The session lives in Firebase Realtime Database — no app, no sign-up, no friction.
 
 ### 3. Safe routing — A* + SafetiPin scoring
 
@@ -81,19 +81,28 @@ The frontend renders both as Mapbox line layers (emerald solid = safe, amber das
 - **Normalizes** Unicode with `csebuetnlp/normalizer` (graceful fallback)
 - **Embeds** with `l3cube-pune/bengali-sentence-similarity-sbert`
 - **Retrieves** from a 60+ entry ChromaDB KB across 14 safety categories
-- **Generates** with Gemini 2.5 Flash (default) or Groq `gpt-oss-120b` (one-line `.env` switch)
+- **Generates** with Gemini 2.5 Flash (default) or Groq `llama-3.3-70b-versatile` (one-line `.env` switch)
 
 Strict guardrails: **never hallucinates** phone numbers. If retrieval returns nothing, the response is the hard-coded `EMERGENCY_FALLBACK` (999 / 10921).
 
-### 5. Trusted Circles
+### 5. Trusted Circles (JWT-authenticated)
 
-Per-device circle CRUD (family, friends, roommates) backed by SQLite (dev) or Supabase (prod). Each circle has members with name + contact + relation. Used to dispatch SOS alerts.
+Per-user circle CRUD (family, friends, roommates) backed by SQLite (dev) or Supabase (prod). Each circle has members with name + contact + relation. Auth is **dual-mode**: Supabase JWT (HS256) in production, legacy HMAC token for hackathon dev. Used to dispatch SOS alerts.
 
-### 6. Geocoding
+### 6. Auth — phone OTP + email/password
+
+Three-step signup flow:
+1. **Basic info** — name, email, phone, password, home area
+2. **Firebase phone OTP** via invisible reCAPTCHA (SMS verification)
+3. **Profile photo upload** to Firebase Storage
+
+Identity is anchored to a real BD phone number — no fake NID field. (Production deployment would integrate Bangladesh's Election Commission NID API; out of scope for the hackathon.) The user row stores `home_area` (used for map centering + chatbot context), `photo_url` (rendered on `/track`), and `phone_verified` (set after Firebase OTP succeeds).
+
+### 7. Geocoding
 
 Free-text place names ("GEC Circle", "2 No Gate") resolve to lat/lng via OpenStreetMap Nominatim with a Bangladesh viewbox and 1.05 s throttle (Nominatim TOS compliance).
 
-### 7. Community incident reporting
+### 8. Community incident reporting
 
 Anonymous submission of unsafe-area reports (8 categories, 4 time-of-day buckets). Powers a heatmap layer on the map. Capped at 10 reports / hour / session via sliding-window rate limiter.
 
@@ -195,8 +204,8 @@ SafeHer/
 │   │   ├── transliterator.py         ← Avro phonetic map
 │   │   └── normalizer.py             ← csebuetnlp wrapper
 │   ├── db/
-│   │   ├── local_db.py               ← SQLite fallback
-│   │   └── supabase_client.py
+│   │   ├── local_db.py               ← SQLite fallback (users, contacts, sos_logs, circles)
+│   │   └── supabase_client.py        ← anon + service-role clients + JWT verify
 │   ├── precompute/
 │   │   ├── build_graph.py            ← OSM download + KDE scoring
 │   │   ├── seed_incidents.py
@@ -216,18 +225,35 @@ SafeHer/
         ├── pages/
         │   ├── Landing/              ← marketing
         │   ├── AppShell/             ← in-app shell + bottom nav
-        │   └── Track/                ← public tracking map
+        │   ├── Auth/                 ← Login + 3-step Signup
+        │   ├── Circles/              ← Trusted Circles UI
+        │   └── Track/                ← public tracking map (with profile header)
         ├── features/
         │   ├── sos/                  ← SOS button + disguise
         │   ├── chat/                 ← SafetyChat component
         │   ├── map/                  ← MapContainer + routing
-        │   └── tracking/             ← Firebase subscribe helper
+        │   ├── auth/                 ← firebasePhoneAuth, uploadProfilePhoto
+        │   └── tracking/             ← Firebase subscribe + push helpers
         ├── components/ui/            ← Button, IconButton
-        ├── contexts/                 ← EmergencyProvider
-        ├── lib/                      ← api.js, useMapbox.js
+        ├── contexts/                 ← AuthProvider, EmergencyProvider
+        ├── lib/                      ← api.js (with Bearer token), useMapbox.js
         ├── utils/                    ← voice trigger, language helpers
         └── styles/                   ← theme.css, index.css
 ```
+
+### Documentation
+
+| File | Purpose |
+|---|---|
+| `README.md` | This file — top-level overview |
+| `API_DOCUMENTATION.md` | Full HTTP API reference |
+| `INTEGRATIONS_SETUP.md` | Step-by-step setup for Firebase, Supabase, EmailJS, Groq, Gemini |
+| `PRE_DEMO_CHANGES.md` | Audit log of the pre-demo hardening pass (auth, JWT, photo, home_area) |
+| `DEPLOYMENT.md` | Production deployment guide for Render / Vercel / Netlify / Railway / Fly.io |
+| `Problem.md` | Problem framing + Bangladesh context |
+| `datasets.md` | Dataset inventory + sources |
+| `SafeHer_Backend_System_Design.md` | Original system design document |
+| `CLAUDE.md` | Handoff notes for AI agents |
 
 ---
 
@@ -298,8 +324,10 @@ cd frontend && npm run build
 | `GROQ_API_KEY` | _empty_ | Required for `groq` provider |
 | `HUGGINGFACE_API_KEY` | _empty_ | Embedding model downloads |
 | `USE_SUPABASE` | `false` | Switch incident/circle storage to PostGIS |
-| `SUPABASE_URL` | _empty_ | |
-| `SUPABASE_KEY` | _empty_ | service-role key |
+| `SUPABASE_URL` | _empty_ | Supabase project URL |
+| `SUPABASE_KEY` | _empty_ | **Publishable / anon key** (browser-safe; RLS-restricted) |
+| `SUPABASE_SERVICE_KEY` | _empty_ | **Service role key** (backend only, bypasses RLS). Falls back to `SUPABASE_KEY` if unset. |
+| `SUPABASE_JWT_SECRET` | _empty_ | HS256 secret for verifying frontend access tokens. Supabase → Settings → API → JWT Secret. |
 | `USE_FIREBASE` | `false` | Switch SOS event storage |
 | `FIREBASE_CREDENTIALS_BASE64` | _empty_ | base64 service-account JSON |
 | `HOST` | `0.0.0.0` | |
@@ -414,25 +442,21 @@ npm run lint                    # oxlint, fast
 
 ## Deployment
 
-### Backend on Render
+The full deployment guide — including how to deploy to Render + Vercel,
+Railway + Netlify, Fly.io, and how to keep the free tier awake during
+your demo — lives in **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
 
-1. Push `backend/` to a Git repo
-2. Create a new **Web Service** on Render, root dir `backend/`
-3. Build command: `pip install -r requirements.txt`
-4. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-5. Add environment variables from [Configuration](#configuration)
-6. **Critical**: precompute the graph BEFORE the first deploy — either commit `data/chittagong_walk.graphml` or add a one-shot build step
+TL;DR for the SciBlitz demo:
 
-### Frontend on Vercel
+| Layer | Recommended host | Why |
+|---|---|---|
+| Backend | **Render** free Web Service | FastAPI-ready, free tier, .env support |
+| Frontend | **Netlify** or **Vercel** | Both work. Netlify is free-tier gentler; Vercel has cleaner Vite support |
+| Keep-alive | `cron-job.org` hitting `/health` every 14 min | Defeats Render's 15-min sleep |
 
-1. Push `frontend/` to a Git repo
-2. Import on Vercel, framework preset: **Vite**
-3. Add env vars from `frontend/.env.example`
-4. Set `VITE_API_URL` to your Render backend URL
+**Critical pre-deploy step**: pre-build `chroma_store/` and `data/chittagong_walk.graphml` on your local machine and commit them. Otherwise Render's 512 MB RAM can't load the 500 MB Bengali SBERT model on first boot.
 
-### Free-tier caveat
-
-Render's free tier sleeps after 15 min of inactivity. Configure a [cron job](https://cron-job.org) to ping `/health` every 14 minutes during the demo window.
+See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for the full step-by-step.
 
 ---
 
@@ -487,20 +511,22 @@ curl -X POST http://localhost:8000/circles/ \
 
 ## Security & privacy
 
-- **All chat queries are PII-stripped before embedding** (TODO — currently raw text)
-- **Sessions are scoped per-device** via the auto-generated `X-Session-Id` header (stored in localStorage)
+- **Auth is JWT-bound** — every protected endpoint accepts a Supabase HS256 JWT (production) or a legacy SafeHer HMAC token (dev). The frontend attaches the JWT as `Authorization: Bearer <token>` automatically; the backend verifies the signature against `SUPABASE_JWT_SECRET` with no network round-trip.
 - **Trusted Circle membership is ownership-checked** — no cross-owner reads
-- **No raw 500s** — every endpoint either returns data or an emergency fallback
+- **Passwords hashed** with PBKDF2-HMAC-SHA256, 200k iterations, 16-byte random salt per user. Legacy SHA-256 hashes are auto-upgraded on login.
+- **Disposable email domains blocked** at signup (mailinator, tempmail, etc.)
+- **No raw 500s** — every endpoint either returns data or a safe fallback
 - **Bangla/Banglish transliteration runs locally** — no third-party translation calls
 - **SOS alerts go through EmailJS** (no backend logging of recipient addresses)
-- **Firebase RTDB rules** (TODO): lock `/locations/<uid>` writes to authenticated sessions
+- **Rate-limited** by IP for auth routes, by session for incidents
+- **Firebase Storage rules** (you must set these yourself): allow public read on `profile_photos/*`, require auth on write
+- **Firebase RTDB rules** (you must set these yourself): lock `/locations/<uid>` writes to authenticated sessions
 
-For a production deployment, add:
-- JWT-bound `X-Session-Id` instead of localStorage UUID
-- PostGIS row-level security on Supabase
-- Rate limiting middleware (currently per-process; would need Redis for multi-instance)
+For a production deployment beyond the hackathon, add:
+- PostGIS row-level security on Supabase (RLS is on by default — write policies for `sos_events`)
+- Rate limiting middleware on a shared store (currently per-process; use Redis for multi-instance)
 - HTTPS-only cookies and CSP headers
-- Firebase security rules restricting reads to specific session paths
+- PII-stripping on chat queries before embedding
 
 ---
 
@@ -509,9 +535,9 @@ For a production deployment, add:
 1. **Graph is Chittagong-only.** The `precompute/build_graph.py` script is hard-coded to a 5 km radius around `22.3569, 91.7832`. Add other cities by extending the script.
 2. **Single-process rate limiter.** Multiple Uvicorn workers won't share the limiter. Use Redis for production.
 3. **Nominatim 1 RPS throttle** means ~60 place-lookups / minute / process. For high traffic, switch to Mapbox Geocoding.
-4. **Bengali SBERT model is ~500 MB.** First boot downloads it from HuggingFace. Set `ENABLE_BENGALI_EMBEDDER=false` to fall back to the 80 MB `all-MiniLM-L6-v2` (lower Bengali quality).
-5. **Frontend uses localStorage session IDs.** A user clearing their browser loses their Trusted Circles. Acceptable for the hackathon.
-6. **No authenticated users yet.** The current model is "device-local identity." A Supabase Auth integration is the obvious next step.
+4. **Bengali SBERT model is ~500 MB.** First boot downloads it from HuggingFace. **Mitigation**: pre-build `chroma_store/` locally and commit it so the running process never has to download the model. Set `ENABLE_BENGALI_EMBEDDER=false` to fall back to the 80 MB `all-MiniLM-L6-v2` (lower Bengali quality).
+5. **Render free tier sleeps after 15 min.** Set up a cron job on `cron-job.org` to ping `/health` every 14 minutes during the demo window — the endpoint already reports `graph.loaded` and `knowledge_base.document_count` so a green response is a real readiness signal.
+6. **NID verification is out of scope.** Bangladesh's Election Commission NID API requires government registration. We use Firebase phone OTP instead, which judges accepted as a credible identity signal — see the pitch in `DEPLOYMENT.md`.
 
 ---
 
@@ -524,7 +550,7 @@ For a production deployment, add:
 - **OpenStreetMap** + **Nominatim** — free geodata and geocoding
 - **Mapbox** for the dark map style
 
-Built at **CUET SciBlitz 2025**.
+Built at **CUET SciBlitz 2026**.
 
 ---
 

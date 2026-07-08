@@ -141,6 +141,99 @@
   gap: 0.375rem;
 }
 
+/* ---------- Profile header (above the status banner) ---------- */
+.track__profile {
+  position: absolute;
+  top: calc(64px + env(safe-area-inset-top, 0px) + 56px);
+  left: var(--space-4);
+  z-index: var(--z-elevated);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 14px 10px 10px;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  max-width: calc(100vw - var(--space-4) * 2);
+}
+
+.track__profile-avatar {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: visible;
+  background: var(--color-brand);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-on-accent);
+}
+
+.track__profile-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.track__profile-initials {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.track__profile-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--color-danger, #e8476a);
+  animation: track-profile-pulse 1.8s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes track-profile-pulse {
+  0%   { transform: scale(0.85); opacity: 0.9; }
+  100% { transform: scale(1.5);  opacity: 0;   }
+}
+
+.track__profile-meta { min-width: 0; }
+
+.track__profile-eyebrow {
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.track__profile-name {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track__profile-phone {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+
 /* ---------- Marker ---------- */
 .track__marker {
   position: relative;

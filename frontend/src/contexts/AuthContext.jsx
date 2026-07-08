@@ -27,7 +27,7 @@ export function AuthProvider({ children }) {
       setUser(data.user);
       setContacts(data.contacts);
     } catch (err) {
-      console.error("Failed to load profile:", err);
+      console.error('Failed to load profile:', err);
       if (err.status === 401) {
         logout(); // Token expired or invalid
       }
@@ -40,6 +40,8 @@ export function AuthProvider({ children }) {
     const data = await api.auth.login({ email, password });
     setToken(data.token);
     setUser(data.user);
+    // Persist the token so api.js can attach it as Bearer on next call
+    localStorage.setItem('safeher.token', data.token);
     // User profile will reload via useEffect
   };
 
@@ -47,24 +49,46 @@ export function AuthProvider({ children }) {
     const data = await api.auth.signup(userData);
     setToken(data.token);
     setUser(data.user);
+    localStorage.setItem('safeher.token', data.token);
   };
 
   const logout = () => {
     setToken(null);
+    localStorage.removeItem('safeher.token');
+    localStorage.removeItem('safeher.jwt');
+  };
+
+  // Add a Supabase JWT after the user signs in to Firebase / Supabase auth.
+  const setSupabaseJwt = (jwt) => {
+    if (jwt) localStorage.setItem('safeher.jwt', jwt);
+    else localStorage.removeItem('safeher.jwt');
   };
 
   const addContact = async (contact) => {
-    const newContact = await api.auth.addContact(token, contact);
-    setContacts(prev => [...prev, newContact]);
+    const newContact = await api.auth.addContact(contact);
+    setContacts((prev) => [...prev, newContact]);
   };
 
   const deleteContact = async (id) => {
-    await api.auth.deleteContact(token, id);
-    setContacts(prev => prev.filter(c => c.id !== id));
+    await api.auth.deleteContact(id);
+    setContacts((prev) => prev.filter((c) => c.id !== id));
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, contacts, isLoading, login, signup, logout, addContact, deleteContact }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        contacts,
+        isLoading,
+        login,
+        signup,
+        logout,
+        addContact,
+        deleteContact,
+        setSupabaseJwt,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

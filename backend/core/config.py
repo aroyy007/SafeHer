@@ -29,7 +29,21 @@ class Settings(BaseSettings):
     # --- Supabase ---
     USE_SUPABASE: bool = Field(default=False, description="Enable Supabase for incident storage")
     SUPABASE_URL: str = Field(default="", description="Supabase project URL")
-    SUPABASE_KEY: str = Field(default="", description="Supabase service role key")
+    SUPABASE_KEY: str = Field(default="", description="Supabase publishable / anon key (browser-safe)")
+    SUPABASE_SERVICE_KEY: str = Field(
+        default="",
+        description=(
+            "Supabase SERVICE ROLE key (backend only, bypasses RLS). "
+            "If empty, falls back to SUPABASE_KEY — set this on Render for production."
+        ),
+    )
+    SUPABASE_JWT_SECRET: str = Field(
+        default="",
+        description=(
+            "Supabase JWT Secret (HS256) for verifying access tokens. "
+            "Find it at Project Settings → API → JWT Secret."
+        ),
+    )
 
     # --- Firebase ---
     USE_FIREBASE: bool = Field(default=False, description="Enable Firebase for SOS tracking")
