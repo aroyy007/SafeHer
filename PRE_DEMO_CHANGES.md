@@ -1,38 +1,45 @@
 # SafeHer — Pre-Demo Production Hardening
 
-This document covers four production-grade upgrades that landed before
+This document covers the production-grade upgrades that landed before
 the SciBlitz demo on 17 July. Each section tells you: **what changed,
 what env vars to set, and what to verify on stage day.**
 
+> **Note (v0.3):** Phone-OTP signup was removed in favour of email-only
+> signup. The signup form is now two steps (details + photo) instead
+> of three. The `firebasePhoneAuth.js` module is gone; trusted-circle
+> alerts and SOS dispatch still work unchanged. The remaining sections
+> below are kept for the historical record.
+
 ---
 
-## 1. Phone OTP signup (replaces NID)
+## 1. (Removed) Phone OTP signup
 
-**Why:** NID verification in Bangladesh requires government API access
-your team doesn't have. Phone OTP via Firebase is the next best thing —
-it proves the user owns the number, is free, and takes ~10 seconds.
+**Why we removed it:** Firebase phone OTP added a hard dependency on
+the Firebase Console (Phone provider must be enabled) and on real SMS
+delivery — both of which broke during demo rehearsal. Email is already
+a strong identity anchor for the hackathon; the trusted-circle alerts
+are dispatched by email anyway, so verified email is more useful than
+verified phone.
 
-**What you'll see during signup:** Three steps instead of one.
-1. Basic info (name, email, phone, password, home_area)
-2. Firebase invisible reCAPTCHA + 6-digit SMS code
-3. Profile photo upload
+**What the form looks like now:** Two steps.
+1. Basic info (name, email, optional phone, password, home_area)
+2. Profile photo upload (optional)
 
-**Files changed/added:**
-- `frontend/src/features/auth/firebasePhoneAuth.js` *(new)*
-- `frontend/src/features/auth/uploadProfilePhoto.js` *(new)*
-- `frontend/src/pages/Auth/Signup.jsx` (3-step form)
-- `frontend/src/contexts/AuthContext.jsx` (exposes `setSupabaseJwt`)
-- `backend/routers/auth.py` (signup accepts `home_area`, `photo_url`, `phone_verified`)
-- `backend/services/auth_service.py` (stores the new fields)
-- `backend/db/local_db.py` (added `home_area`, `photo_url`, `phone_verified` columns)
+**Files changed in the removal:**
+- `frontend/src/pages/Auth/Signup.jsx` (rewritten as 2-step, no Firebase imports)
+- `frontend/src/features/auth/firebasePhoneAuth.js` *(deleted)*
+- `backend/services/auth_service.py` (`phone_verified` always `False` at signup)
+- docs (`README.md`, `DEPLOYMENT.md`, `INTEGRATIONS_SETUP.md`, `BACKEND_DEPLOY.md`)
 
 **Pitch line:**
-> "We use Firebase phone OTP for identity. Production deployment would
-> integrate Bangladesh's Election Commission NID verification API — out of
-> scope for the hackathon due to government API registration."
+> "We use email for identity — the same channel that delivers SOS
+> alerts to trusted contacts. Production deployment would integrate
+> Bangladesh's Election Commission NID verification API — out of scope
+> for the hackathon due to government API registration."
 
 **Verify before demo:**
-- Test signup with a real BD number you control.
+- Test signup with any email + password; you should land on `/app/sos`
+  with no OTP step.
 - The SMS will say "SafeHer verification code" — Firebase's default
   template. Customize the template text in Firebase Console → Authentication → Templates.
 
@@ -206,9 +213,7 @@ cd /Users/arijitroy/Documents/SafeHer/frontend
 npm run dev
 
 # 3. Open http://localhost:5173/signup
-#    → fill form
-#    → enter a real BD number you control
-#    → paste the 6-digit SMS code
+#    → fill form (email + password; phone is optional)
 #    → (optional) upload a photo
 #    → submit → you land on /app/sos
 

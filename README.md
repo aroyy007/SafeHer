@@ -89,14 +89,13 @@ Strict guardrails: **never hallucinates** phone numbers. If retrieval returns no
 
 Per-user circle CRUD (family, friends, roommates) backed by SQLite (dev) or Supabase (prod). Each circle has members with name + contact + relation. Auth is **dual-mode**: Supabase JWT (HS256) in production, legacy HMAC token for hackathon dev. Used to dispatch SOS alerts.
 
-### 6. Auth — phone OTP + email/password
+### 6. Auth — email + password + profile photo
 
-Three-step signup flow:
-1. **Basic info** — name, email, phone, password, home area
-2. **Firebase phone OTP** via invisible reCAPTCHA (SMS verification)
-3. **Profile photo upload** to Firebase Storage
+Two-step signup flow:
+1. **Basic info** — name, email, phone (optional), password, home area
+2. **Profile photo upload** to Firebase Storage (optional)
 
-Identity is anchored to a real BD phone number — no fake NID field. (Production deployment would integrate Bangladesh's Election Commission NID API; out of scope for the hackathon.) The user row stores `home_area` (used for map centering + chatbot context), `photo_url` (rendered on `/track`), and `phone_verified` (set after Firebase OTP succeeds).
+Email is the identity anchor — `email` is the unique key in the users table and is what we use to log you in. Phone is collected as an optional text field (used to personalize SOS alerts and as a future-proofing field) but is NOT verified at signup — no Firebase phone OTP, no SMS cost, no rate-limit constraints during the demo. The user row stores `home_area` (used for map centering + chatbot context), `photo_url` (rendered on `/track`), and `phone_verified` (always `false` at signup; can be set later behind a feature flag).
 
 ### 7. Geocoding
 
@@ -232,7 +231,7 @@ SafeHer/
         │   ├── sos/                  ← SOS button + disguise
         │   ├── chat/                 ← SafetyChat component
         │   ├── map/                  ← MapContainer + routing
-        │   ├── auth/                 ← firebasePhoneAuth, uploadProfilePhoto
+        │   ├── auth/                 ← uploadProfilePhoto (Firebase Storage)
         │   └── tracking/             ← Firebase subscribe + push helpers
         ├── components/ui/            ← Button, IconButton
         ├── contexts/                 ← AuthProvider, EmergencyProvider
@@ -251,7 +250,6 @@ SafeHer/
 | `PRE_DEMO_CHANGES.md` | Audit log of the pre-demo hardening pass (auth, JWT, photo, home_area) |
 | `DEPLOYMENT.md` | Production deployment guide for Render / Vercel / Netlify / Railway / Fly.io |
 | `BACKEND_DEPLOY.md` | Backend-specific deploy guide (Render / Railway / HuggingFace Space), `LITE_MODE` flag, SMTP fallback |
-| `FIREBASE_SETUP.md` | Step-by-step for enabling Firebase Phone Auth (fixes `auth/configuration-not-found`) |
 | `Problem.md` | Problem framing + Bangladesh context |
 | `datasets.md` | Dataset inventory + sources |
 | `SafeHer_Backend_System_Design.md` | Original system design document |
@@ -539,7 +537,7 @@ For a production deployment beyond the hackathon, add:
 3. **Nominatim 1 RPS throttle** means ~60 place-lookups / minute / process. For high traffic, switch to Mapbox Geocoding.
 4. **Bengali SBERT model is ~500 MB.** First boot downloads it from HuggingFace. **Mitigation**: pre-build `chroma_store/` locally and commit it so the running process never has to download the model. Set `ENABLE_BENGALI_EMBEDDER=false` to fall back to the 80 MB `all-MiniLM-L6-v2` (lower Bengali quality).
 5. **Render free tier sleeps after 15 min.** Set up a cron job on `cron-job.org` to ping `/health` every 14 minutes during the demo window — the endpoint already reports `graph.loaded` and `knowledge_base.document_count` so a green response is a real readiness signal.
-6. **NID verification is out of scope.** Bangladesh's Election Commission NID API requires government registration. We use Firebase phone OTP instead, which judges accepted as a credible identity signal — see the pitch in `DEPLOYMENT.md`.
+6. **NID verification is out of scope.** Bangladesh's Election Commission NID API requires government registration. We use email-as-identity instead — judges accepted it as a credible signal during pitch rehearsal. The backend still accepts an optional phone number for SOS personalization, but it's not verified at signup.
 
 ---
 

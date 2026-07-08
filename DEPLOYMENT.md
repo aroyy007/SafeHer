@@ -357,8 +357,8 @@ curl -sI https://safeher-xyz.netlify.app/ | head -1
 # 3. Frontend can talk to backend
 # (open browser devtools → console; sign up; check Network tab for 200s)
 
-# 4. Phone OTP works
-# (sign up with a real BD number; SMS arrives; complete flow)
+# 4. Email signup works end-to-end
+# (sign up with email + password; reach /app/sos without errors)
 
 # 5. EmailJS works
 # (add contact with email; trigger SOS; email arrives within 30 s)
@@ -392,7 +392,7 @@ If any of these fail, jump to [Section 10](#10-troubleshooting).
 | `/health` says `graph.loaded: false` | Graph file not found | Confirm `data/chittagong_walk.graphml` is in the GitHub repo, not just locally |
 | First request takes ~30 s | Render cold start | Cron-job keep-alive (Section 6) |
 | CORS error in browser console | Render `ALLOWED_ORIGINS` doesn't include frontend URL | Add `https://safeher-xyz.netlify.app` to Render env vars |
-| Phone OTP never arrives / `auth/configuration-not-found` | Firebase Auth Phone provider not enabled | Firebase Console → Auth → Sign-in method → Phone → Enable. See **[FIREBASE_SETUP.md](FIREBASE_SETUP.md)** for the 60-second walkthrough |
+| Phone OTP never arrives / `auth/configuration-not-found` | Phone OTP is no longer used in signup (removed for the demo). If you see this, you're on an old build — pull main and rebuild. | n/a |
 | Profile photo upload 403 | Firebase Storage rules too strict | Apply the rules from `INTEGRATIONS_SETUP.md` §6.5 |
 | EmailJS "user not found" | Wrong Service ID or template mismatch | EmailJS Dashboard → Logs → check the error |
 | EmailJS quota exhausted mid-demo | Free tier SMS/email limit hit | Backend now has `/sos/alert` SMTP fallback — see **[BACKEND_DEPLOY.md](BACKEND_DEPLOY.md)** §A.3 to enable |

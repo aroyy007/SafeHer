@@ -75,7 +75,7 @@ services:
       # Feature flags
       # LITE_MODE=true on Render free tier (512MB RAM). Set to "false" and
       # ENABLE_BENGALI_EMBEDDER=true on the Standard plan ($7/mo) for the
-      # full Bengali SBERT experience. See BACKEND_DEPLOY.md §A.4.
+      # full Bengali SBERT experience. See BACKEND_DEPLOY.md §A.3.
       - key: LITE_MODE
         value: "true"
       - key: ENABLE_BENGALI_EMBEDDER
@@ -86,7 +86,7 @@ services:
         value: ./chroma_store
 
       # SMTP (optional — for /sos/alert server-side email fallback)
-      # Leave blank to disable. See BACKEND_DEPLOY.md §A.3.
+      # Leave blank to disable. See BACKEND_DEPLOY.md §A.2.
       - key: SMTP_HOST
         value: ""
       - key: SMTP_PORT

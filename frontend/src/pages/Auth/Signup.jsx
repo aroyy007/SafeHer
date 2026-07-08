@@ -1,13 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { ShieldCheck, Loader2, ArrowRight, ChevronRight, Camera, Phone } from 'lucide-react';
-import {
-  formatBdPhone,
-  buildRecaptcha,
-  sendOtp,
-  confirmOtp,
-} from '../../features/auth/firebasePhoneAuth';
+import { ShieldCheck, Loader2, ArrowRight, ChevronRight, Camera } from 'lucide-react';
 import {
   uploadProfilePhoto,
   readFileAsDataUrl,
@@ -15,14 +9,14 @@ import {
 import './auth.css';
 
 /**
- * Signup — three steps:
- *   1. Basic info (name, email, phone, password, home_area)
- *   2. Phone OTP (Firebase invisible reCAPTCHA + 6-digit code)
- *   3. Profile photo + final submit (uploads to Firebase Storage)
+ * Signup — two steps:
+ *   1. Basic info (name, email, phone, home_area, password)
+ *   2. Profile photo + final submit (uploads to Firebase Storage)
  *
- * We phone-verify BEFORE creating the backend account so the backend
- * can store `phone_verified = true` directly. (Simpler than creating
- * the account, then updating it.)
+ * No phone OTP. Phone is collected as a plain text field (used by the
+ * backend to identify the user and by the SOS flow to format alerts)
+ * but is not verified at signup time. A phone-verified identity check
+ * can be added later behind a feature flag if needed for the demo.
  */
 export function Signup() {
   const [step, setStep] = useState(1);
@@ -35,15 +29,11 @@ export function Signup() {
   });
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState('');
-  const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [confirmationResult, setConfirmationResult] = useState(null);
-  const [otpSent, setOtpSent] = useState(false);
-  const recaptchaRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  const { signup, setSupabaseJwt } = useAuth();
+  const { signup } = useAuth();
   const navigate = useNavigate();
 
   /* ----- Step 1: validate basic info ----- */
@@ -60,76 +50,18 @@ export function Signup() {
       setError('Password must be at least 8 characters.');
       return;
     }
-    if (!formatBdPhone(formData.phone)) {
-      setError('Enter a valid Bangladesh phone number (e.g. 01712345678).');
+    if (!formData.name.trim()) {
+      setError('Please enter your name.');
+      return;
+    }
+    if (!formData.email.trim()) {
+      setError('Please enter your email.');
       return;
     }
     setStep(2);
   };
 
-  /* ----- Step 2: send / confirm phone OTP ----- */
-  const handleSendOtp = async () => {
-    setError('');
-    setIsLoading(true);
-    try {
-      const phoneE164 = formatBdPhone(formData.phone);
-      if (!recaptchaRef.current) {
-        recaptchaRef.current = buildRecaptcha('recaptcha-container');
-      }
-      const result = await sendOtp(recaptchaRef.current, phoneE164);
-      setConfirmationResult(result);
-      setOtpSent(true);
-    } catch (err) {
-      console.error(err);
-      // Translate the most common Firebase error codes into actionable
-      // guidance for the user. The raw "auth/configuration-not-found"
-      // is opaque; this version points at the fix.
-      const code = err?.code || '';
-      if (code === 'auth/configuration-not-found') {
-        setError(
-          'Phone sign-in is not enabled in the Firebase project. ' +
-          'Open Firebase Console → Authentication → Sign-in method → Phone → Enable. ' +
-          'See FIREBASE_SETUP.md for the full step-by-step.'
-        );
-      } else if (code === 'auth/invalid-phone-number') {
-        setError('That phone number was rejected by Firebase. Double-check the format (+880XXXXXXXXXX).');
-      } else if (code === 'auth/too-many-requests') {
-        setError('Too many OTP requests. Wait a few minutes and try again.');
-      } else if (code === 'auth/quota-exceeded') {
-        setError('SMS quota exhausted for this Firebase project. Contact the project owner.');
-      } else {
-        setError(err?.message || 'Failed to send OTP. Check your phone number and try again.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    setError('');
-    if (!/^\d{6}$/.test(otp)) {
-      setError('Enter the 6-digit code we just sent.');
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const { user, idToken } = await confirmOtp(confirmationResult, otp);
-      // Persist the Firebase ID token so api.js attaches it as Bearer
-      // (backend can optionally verify Supabase/Firebase tokens).
-      if (idToken) setSupabaseJwt(idToken);
-      // We treat phone_verified=true once Firebase confirms.
-      formData._firebaseUid = user.uid;
-      setStep(3);
-    } catch (err) {
-      console.error(err);
-      setError('Wrong code, or the code expired. Try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  /* ----- Step 3: photo + final submit ----- */
+  /* ----- Step 2: photo + final submit ----- */
   const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -154,19 +86,22 @@ export function Signup() {
       // 1) Upload photo (if any) → returns public URL
       let photoUrl = '';
       if (photoFile) {
-        const uid = formData._firebaseUid || `local-${Date.now()}`;
-        photoUrl = await uploadProfilePhoto(photoFile, uid);
+        // No Firebase UID since we removed phone OTP — derive a stable
+        // local id so the photo can be replaced/re-uploaded later.
+        const localUid = `local-${Date.now()}`;
+        photoUrl = await uploadProfilePhoto(photoFile, localUid);
       }
 
-      // 2) Call backend /auth/signup with everything
+      // 2) Call backend /auth/signup with everything. Phone is collected
+      //    as a plain string and stored unverified.
       await signup({
-        name: formData.name,
-        email: formData.email,
-        phone: formatBdPhone(formData.phone),
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
         password: formData.password,
         home_area: formData.home_area,
         photo_url: photoUrl,
-        phone_verified: true, // Firebase already verified
+        phone_verified: false,
       });
       navigate('/app/sos');
     } catch (err) {
@@ -216,14 +151,14 @@ export function Signup() {
           </p>
 
           <ul className="auth__panel-list">
-            <li><span className="auth__panel-dot" /> Phone-verified identity (no NID needed)</li>
+            <li><span className="auth__panel-dot" /> Email-based account (no NID, no SMS)</li>
             <li><span className="auth__panel-dot" /> No app to install for your circle</li>
             <li><span className="auth__panel-dot" /> Anonymous incident reports stay anonymous</li>
           </ul>
         </div>
 
         <div className="auth__panel-foot">
-          <span className="auth__panel-foot-meta">v0.2 · CUET SciBlitz</span>
+          <span className="auth__panel-foot-meta">v0.3 · CUET SciBlitz</span>
           <span className="auth__panel-foot-meta">© {new Date().getFullYear()}</span>
         </div>
       </aside>
@@ -236,9 +171,8 @@ export function Signup() {
           <header className="auth__form-head">
             <h1 className="auth__title">Create account</h1>
             <p className="auth__sub">
-              {step === 1 && 'Step 1 of 3 — your details'}
-              {step === 2 && 'Step 2 of 3 — verify your phone'}
-              {step === 3 && 'Step 3 of 3 — add a photo'}
+              {step === 1 && 'Step 1 of 2 — your details'}
+              {step === 2 && 'Step 2 of 2 — add a photo'}
             </p>
           </header>
 
@@ -275,14 +209,17 @@ export function Signup() {
               </div>
 
               <div className="auth__field">
-                <label htmlFor="phone">Phone number (Bangladesh)</label>
+                <label htmlFor="phone">Phone (optional)</label>
                 <input
-                  id="phone" type="tel" required className="input-field"
+                  id="phone" type="tel" className="input-field"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   autoComplete="tel"
                   placeholder="01712 345 678"
                 />
+                <small className="auth__hint" style={{ display: 'block', marginTop: 4, color: '#888' }}>
+                  Optional — used to personalize SOS alerts. Not verified at signup.
+                </small>
               </div>
 
               <div className="auth__field">
@@ -319,80 +256,8 @@ export function Signup() {
             </form>
           )}
 
-          {/* Step 2: phone OTP */}
+          {/* Step 2: photo upload + final submit */}
           {step === 2 && (
-            <form onSubmit={handleVerifyOtp} className="auth__form">
-              <div id="recaptcha-container" />
-
-              <p className="auth__sub" style={{ marginBottom: 12 }}>
-                We&rsquo;ll send a one-time code to{' '}
-                <strong>{formatBdPhone(formData.phone) || formData.phone}</strong> via SMS
-                to confirm it&rsquo;s really you.
-              </p>
-
-              {!otpSent ? (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleSendOtp}
-                  disabled={isLoading}
-                  style={{ minHeight: 44 }}
-                >
-                  {isLoading ? (
-                    <><Loader2 className="animate-spin" size={16} /> Sending code…</>
-                  ) : (
-                    <><Phone size={16} /> Send verification code</>
-                  )}
-                </button>
-              ) : (
-                <>
-                  <div className="auth__field">
-                    <label htmlFor="otp">6-digit code</label>
-                    <input
-                      id="otp" type="text" inputMode="numeric" maxLength={6}
-                      required className="input-field"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                      autoComplete="one-time-code"
-                      placeholder="123456"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={isLoading || otp.length !== 6}
-                    style={{ minHeight: 44, marginTop: 'var(--space-2)' }}
-                  >
-                    {isLoading ? (
-                      <><Loader2 className="animate-spin" size={16} /> Verifying…</>
-                    ) : (
-                      <>Verify code <ArrowRight size={16} /></>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={handleSendOtp}
-                    style={{ marginTop: 8, color: 'var(--color-text-muted)' }}
-                  >
-                    Resend code
-                  </button>
-                </>
-              )}
-
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setStep(1)}
-                style={{ marginTop: 16, color: 'var(--color-text-muted)' }}
-              >
-                ← Back to step 1
-              </button>
-            </form>
-          )}
-
-          {/* Step 3: photo upload + final submit */}
-          {step === 3 && (
             <form onSubmit={handleFinalSubmit} className="auth__form">
               <div className="auth__field" style={{ textAlign: 'center' }}>
                 <label
@@ -438,7 +303,7 @@ export function Signup() {
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => setStep(2)}
+                onClick={() => setStep(1)}
                 style={{ marginTop: 8, color: 'var(--color-text-muted)' }}
               >
                 ← Back

@@ -107,7 +107,7 @@ Returns:
     "phone": "+8801712345678",
     "home_area": "Halishahar",
     "photo_url": "https://storage.googleapis.com/.../photo.jpg",
-    "phone_verified": true
+    "phone_verified": false
   }
 }
 ```
@@ -665,14 +665,16 @@ are public.
 
 ### `POST /auth/signup`
 
-**Create a new SafeHer account. Three-step flow:**
+**Create a new SafeHer account. Two-step flow (no phone OTP):**
 
-1. Client collects basic info + home area.
-2. Client verifies the phone via Firebase OTP (separate endpoint — see
-   the Firebase Auth docs).
-3. Client uploads the profile photo to Firebase Storage (separate —
+1. Client collects basic info + optional home area.
+2. Client uploads the profile photo to Firebase Storage (separate —
    see Firebase Storage docs).
-4. Client calls this endpoint with all collected data.
+3. Client calls this endpoint with all collected data.
+
+Phone is collected as an optional plain-text field. It is not verified
+at signup; the `phone_verified` flag in the user record defaults to
+`false` and can be set later by an admin endpoint if/when needed.
 
 ```http
 POST /auth/signup HTTP/1.1
@@ -693,11 +695,11 @@ Content-Type: application/json
 |---|---|---|
 | `name` | yes | Trimmed; non-empty |
 | `email` | yes | Validated; disposable domains blocked |
-| `phone` | yes | E.164 format preferred; `+8801XXXXXXXXX` |
+| `phone` | no | Free-form string. Used to personalize SOS alerts; not verified |
 | `password` | yes | Min 8 chars; cannot be all-numeric |
 | `home_area` | no | Free text — used for map centering + chatbot context |
 | `photo_url` | no | Public URL of the uploaded profile photo |
-| `phone_verified` | no | Should be `true` if Firebase OTP succeeded |
+| `phone_verified` | no | Defaults to `false`; not used by the v0.3 frontend |
 
 **Response 201:**
 
@@ -711,7 +713,7 @@ Content-Type: application/json
     "phone": "+8801712345678",
     "home_area": "Halishahar",
     "photo_url": "https://firebasestorage.../photo.jpg",
-    "phone_verified": true
+    "phone_verified": false
   }
 }
 ```
@@ -756,7 +758,7 @@ Authorization: Bearer 594fd...<HMAC signed>
     "phone": "+8801712345678",
     "home_area": "Halishahar",
     "photo_url": "https://firebasestorage.../photo.jpg",
-    "phone_verified": true
+    "phone_verified": false
   },
   "contacts": [
     {

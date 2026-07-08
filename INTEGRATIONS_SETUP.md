@@ -247,20 +247,18 @@ If you see `Supabase URL and Key must be set in .env`, restart uvicorn so Pydant
 
 ---
 
-## 6. Firebase — live-location, phone OTP, and profile photo storage
+## 6. Firebase — live-location and profile photo storage
 
-Why: SafeHer uses three Firebase services in the browser:
+Why: SafeHer uses two Firebase services in the browser:
 
 1. **Realtime Database** — the `/track` page lets a trusted contact watch
    the user's live location on a map. This needs a low-latency pub/sub —
    RTDB is perfect, free tier covers 100k simultaneous connections.
-2. **Authentication (Phone)** — phone OTP verification during signup.
-   The Firebase ID token (JWT) is attached to API calls as `Bearer`.
-3. **Storage** — the user's profile photo is uploaded here and shown on
+2. **Storage** — the user's profile photo is uploaded here and shown on
    the `/track` page during SOS.
 
 **Frontend-only.** No backend changes needed (the backend verifies the
-Supabase Auth JWT, not Firebase's — they coexist cleanly).
+Supabase Auth JWT — we removed Firebase phone OTP in v0.3).
 
 ### 6.1 Create a Firebase project
 
@@ -316,12 +314,23 @@ Restart the frontend dev server with `npm run dev`.
 
 If nothing moves, check the browser console — `isFirebaseReady` should be `true` (visible in `firebaseClient.js`).
 
-### 6.4 Enable Firebase Authentication (for phone OTP)
+### 6.4 (Skipped) Firebase Authentication — phone OTP removed
 
-SafeHer's signup flow uses Firebase phone OTP to verify identity. This is mandatory for production.
+As of v0.3, SafeHer's signup flow no longer uses Firebase phone OTP — we
+removed it because:
 
-1. In Firebase Console → **Build → Authentication** → **Get started**.
-2. Sign-in method tab → **Phone** → enable.
+- It added a hard dependency on the Firebase Console (Phone provider
+  must be enabled) and on real SMS delivery — both of which broke
+  during demo rehearsal.
+- Email is already a strong identity anchor for the hackathon; the
+  trusted-circle alerts are dispatched by email anyway, so verified
+  email is more useful than verified phone.
+- The optional phone field in the signup form is still stored on the
+  user record for SOS personalization, but is not verified.
+
+If you ever need to re-enable phone verification, the previous
+implementation lives in git history (`frontend/src/features/auth/firebasePhoneAuth.js`
+was removed in commit 9b27528+).
 3. Test phone: Firebase provides a couple of test numbers you can use during the demo so you don't burn real SMS quota. **Add at least one test number**:
    - Phone: `+8801712345678`
    - Verification code: `123456`
@@ -349,12 +358,14 @@ SafeHer's signup uploads the user's profile photo so it can be displayed on `/tr
 
 3. Click **Publish**.
 
-### Verify phone OTP + Storage
+### Verify email signup + profile photo storage
 
-1. Sign up in the app with a real BD number you control.
-2. You'll receive an SMS with the verification code (Firebase default template — customize the text in **Authentication → Templates → Phone number verification**).
-3. After verification, you'll be prompted to upload a photo. The upload should land in `profile_photos/<uid>/<timestamp>.jpg` in your Storage bucket, accessible at a public URL.
-4. On the `/track` page after a SOS trigger, that photo should appear in the glass header above the map.
+1. Sign up in the app with an email + password (phone is optional).
+2. You'll be prompted to upload a photo. The upload should land in
+   `profile_photos/local-<timestamp>/<file>.jpg` in your Storage bucket,
+   accessible at a public URL.
+3. On the `/track` page after a SOS trigger, that photo should appear
+   in the glass header above the map.
 
 ---
 
@@ -595,8 +606,8 @@ curl -sS -X POST http://localhost:8000/circles/ \
 # Expected: 201 with id, owner_id matching the user_id
 ```
 
-For the full end-to-end phone OTP + photo upload flow you must test in a
-browser — those features depend on Firebase auth/storage and can't be
+For the full end-to-end email signup + photo upload flow you must test
+in a browser — those features depend on Firebase Storage and can't be
 exercised via curl. The `PRE_DEMO_CHANGES.md` doc walks through it.
 
 ```

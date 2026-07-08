@@ -15,11 +15,7 @@ The repo is already wired for **Render Blueprints** — `render.yaml` is committ
 
 ## Option A — Render (recommended default)
 
-### A.1 One-time: enable Phone auth in Firebase
-
-The backend's signup endpoint relies on the frontend Firebase Phone OTP working. See **[FIREBASE_SETUP.md](FIREBASE_SETUP.md)** for the 60-second setup. Without it, no signup will succeed.
-
-### A.2 Create the Blueprint service
+### A.1 Create the Blueprint service
 
 1. Sign in at https://dashboard.render.com with GitHub.
 2. Click **New + → Blueprint**.
@@ -28,7 +24,7 @@ The backend's signup endpoint relies on the frontend Firebase Phone OTP working.
 5. Click **Apply**.
 6. Render starts the first deploy. While it runs, scroll to the service → **Environment** tab and fill in the secrets listed below.
 
-### A.3 Environment variables
+### A.2 Environment variables
 
 The blueprint pre-fills everything that's safe to commit. **Secrets** (sync: false) need real values from the dashboard.
 
@@ -52,7 +48,7 @@ The blueprint pre-fills everything that's safe to commit. **Secrets** (sync: fal
 | `GRAPH_PATH` / `CHROMA_PATH` | defaults | already set |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | Optional: Gmail app password or SendGrid / Mailgun | optional |
 
-### A.4 Pick the right RAM tier
+### A.3 Pick the right RAM tier
 
 **Free tier (512 MB) — must use LITE_MODE:**
 - `LITE_MODE=true` → skips Bengali SBERT + ChromaDB seeding on boot
@@ -65,7 +61,7 @@ The blueprint pre-fills everything that's safe to commit. **Secrets** (sync: fal
 - `ENABLE_BENGALI_EMBEDDER=true`
 - Bengali SBERT loads (~440 MB) plus the rest of FastAPI fits comfortably
 
-### A.5 Keep it awake
+### A.4 Keep it awake
 
 Render's free tier sleeps after 15 min of no traffic. The first request then takes ~30 s (cold start). For the demo:
 
@@ -75,7 +71,7 @@ Render's free tier sleeps after 15 min of no traffic. The first request then tak
 
 The `render.yaml` already sets `healthCheckPath: /health` so Render's own internal checks also keep it warm.
 
-### A.6 Verify
+### A.5 Verify
 
 ```bash
 curl https://safeher-api.onrender.com/health
@@ -101,7 +97,7 @@ Railway is the easiest "sleep-free" deploy if Render's 15-min idle gets annoying
 
 1. Sign in at https://railway.app with GitHub.
 2. **New Project → Deploy from GitHub → SafeHer**.
-3. Railway auto-detects the repo. Click **Add variables** and paste the same env-var table from **A.3** above.
+3. Railway auto-detects the repo. Click **Add variables** and paste the same env-var table from **A.2** above.
 4. **Settings → Root Directory**: `backend`
 5. **Settings → Build Command**: `pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt`
 6. **Settings → Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
@@ -162,7 +158,7 @@ Create `README.md` for the Space (HF needs it) — but **don't replace the exist
 1. Sign in at https://huggingface.co.
 2. **New Space → Docker → CPU basic (free) → name: `safeher-api`**.
 3. **Files → upload the Dockerfile** you just created, **upload the entire `backend/` folder contents** at the repo root (flatten the structure: `main.py`, `requirements.txt`, `core/`, `services/`, etc., all at the root of the Space repo).
-4. **Settings → Variables and secrets** → paste the env-var table from **A.3**.
+4. **Settings → Variables and secrets** → paste the env-var table from **A.2**.
 5. Click **Build**. First build takes ~5 min.
 
 ### C.4 Verify
