@@ -1,6 +1,8 @@
 # SafeHer — Complete Backend System Design
 **FastAPI · Python · Bengali/Banglish NLP · RAG · OSM Routing · Supabase · Firebase**
 
+> **Implementation/data note:** This is a design reference and contains proposals that may not match the shipped code. The current CrimeDataBD CSV has no `victim_gender` or year/date field; older examples filtering that column are invalid. The canonical live Supabase schema is [`supabase_schema.sql`](supabase_schema.sql). See [`datasets.md`](datasets.md) for source limitations and current routing use.
+
 ---
 
 ## Part 1: The Language Problem — Bengali, Banglish, and Why It Matters
@@ -771,16 +773,15 @@ def build_and_save_graph():
     G = ox.graph_from_place("Chittagong, Bangladesh", network_type="walk")
     print(f"  Graph: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
 
-    print("Step 2/5: Loading CrimeDataBD — filtering female-victim incidents...")
+    print("Step 2/5: Loading CrimeDataBD — filtering valid coordinates...")
     crimes = pd.read_csv("crimedatabd.csv")
-    female = crimes[
-        (crimes["victim_gender"] == "female") &
+    local = crimes[
         (crimes["latitude"].notna()) &
         (crimes["longitude"].notna())
     ][["latitude", "longitude"]]
-    coords = np.radians(female.values)
+    coords = np.radians(local.values)
 
-    print(f"  {len(female)} female-victim incidents loaded")
+    print(f"  {len(local)} records with coordinates loaded; scope to graph bounds before scoring")
 
     print("Step 3/5: Fitting KDE on incident coordinates...")
     kde = KernelDensity(bandwidth=0.005, metric="haversine", algorithm="ball_tree")
@@ -1096,11 +1097,11 @@ async def log_sos(event: SOSEvent):
     Non-blocking — client does not wait for this response.
     """
     from db.supabase_client import supabase
-    supabase.table("sos_events").insert({
+    supabase.table("sos_logs").insert({
         "session_id": event.session_id,
         "lat": event.lat,
         "lng": event.lng,
-        "timestamp": event.timestamp,
+        "payload": {"timestamp_ms": event.timestamp},
         "trigger_method": event.trigger_method,
     }).execute()
     return {"logged": True}

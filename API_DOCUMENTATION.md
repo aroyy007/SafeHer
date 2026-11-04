@@ -22,11 +22,13 @@
   - [POST `/incidents/`](#post-incidents)
   - [GET `/incidents/nearby`](#get-incidentsnearby)
   - [POST `/sos/log`](#post-soslog)
+  - [POST `/sos/alert`](#post-sosalert)
   - [GET `/heatmap/`](#get-heatmap)
   - [Authentication endpoints](#authentication-1)
     - [`POST /auth/signup`](#post-authsignup)
     - [`POST /auth/login`](#post-authlogin)
     - [`GET /auth/me`](#get-authme)
+    - [`GET /auth/sos-contacts`](#get-authsos-contacts)
     - [`POST /auth/contacts`](#post-authcontacts)
     - [`DELETE /auth/contacts/{contact_id}`](#delete-authcontactscontact_id)
   - [Trusted Circles](#trusted-circles)
@@ -54,29 +56,26 @@
 
 ## Authentication
 
-SafeHer uses a **dual-mode auth model**:
-
-1. **Production (recommended):** a Supabase Auth JWT (HS256) attached as
-   `Authorization: Bearer <token>`. Verified locally against
-   `SUPABASE_JWT_SECRET` — no network round-trip.
-2. **Hackathon / dev fallback:** the legacy SafeHer HMAC token
-   (`safeher.token` in localStorage) or the `X-Session-Id` header for
-   unauthenticated endpoints.
+SafeHer accounts and authentication are backed by local SQLite and
+backend-issued HMAC bearer tokens. Optional Supabase storage does not
+replace authentication. A compatible Supabase JWT is accepted only when
+its subject matches an existing SQLite account. The `X-Session-Id` header
+is a rate-limit key for public endpoints, not an authentication credential.
 
 ### Headers
 
 | Header | Required for | Notes |
 |---|---|---|
-| `Authorization: Bearer <jwt>` | `/auth/*`, `/circles/*` | Supabase access token OR legacy SafeHer HMAC token. The frontend auto-attaches it. |
-| `X-Session-Id` | trusted-circle endpoints when no JWT is present, incident reports, anonymous SOS | UUID-like string (`dev-...`, `usr_...`). The frontend auto-generates and persists this in `localStorage`. |
+| `Authorization: Bearer <token>` | `/auth/*`, `/circles/*`, `/sos/alert` | SafeHer HMAC token or compatible JWT; the bearer subject must resolve to a local account. |
+| `X-Session-Id` | rate-limited public endpoints | UUID-like string used only to scope public per-process limits; it cannot authenticate or claim circle ownership. |
 
-Example with JWT (production):
+Example bearer token:
 
 ```
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c3ItMTIzIiw...
 ```
 
-Example with X-Session-Id (dev fallback):
+Example rate-limit session header:
 
 ```
 X-Session-Id: dev-abc123def456
@@ -113,9 +112,7 @@ Returns:
 ```
 
 The frontend persists the `token` to `localStorage.safeher.token` and
-attaches it as `Authorization: Bearer` on every subsequent request.
-For Supabase Auth, the JWT lives at `localStorage.safeher.jwt` and is
-preferred when present.
+attaches it as `Authorization: Bearer` on subsequent protected requests.
 
 ---
 
@@ -128,6 +125,8 @@ A per-process sliding-window limiter enforces the following caps:
 | `POST /chat/` | 30 requests | 60 s | `X-Session-Id` or IP |
 | `GET /geocode/` | 10 requests | 60 s | `X-Session-Id` or IP |
 | `POST /incidents/` | 10 requests | 1 hour | `X-Session-Id` or IP |
+| `POST /sos/log` | 20 requests | 5 min | client IP |
+| `POST /sos/alert` | 5 requests | 5 min | authenticated account |
 
 When you exceed the cap, the response is:
 
@@ -577,7 +576,7 @@ GET /incidents/nearby?lat=22.3569&lng=91.7832&radius_m=1000&days_back=30 HTTP/1.
 
 **Log an SOS activation** to the audit trail.
 
-This endpoint exists for **analytics and abuse prevention only**. The actual SOS alerts (emails/SMS) are sent client-side via EmailJS for reliability and speed.
+This endpoint records an SOS audit event; location is optional and out-of-Bangladesh coordinates are discarded. It is rate limited. Alert delivery is handled by EmailJS with an authenticated server-side SMTP fallback.
 
 ```http
 POST /sos/log HTTP/1.1
@@ -598,8 +597,8 @@ Content-Type: application/json
 | Field | Type | Required | Constraints | Notes |
 |---|---|---|---|---|
 | `session_id` | string | yes | — | A unique ID for the emergency. Used for de-duplication (30 s window). |
-| `lat` | float | yes | — | Out-of-BD is allowed (logged with warning) |
-| `lng` | float | yes | — | |
+| `lat` | float or null | no | Must be paired with `lng` | Out-of-BD coordinates are discarded |
+| `lng` | float or null | no | Must be paired with `lat` | |
 | `timestamp` | int | yes | Unix ms | When the SOS fired |
 | `trigger_method` | enum | yes | `button_hold`, `voice_command`, `disguise_mode`, `test` | `test` events are silently ignored |
 | `lang_at_trigger` | string | no | — | UI language at activation time |
@@ -618,13 +617,34 @@ For test events:
 
 **De-duplication:** identical `session_id` activations within 30 s are silently dropped (so pressing the button AND shouting "বাঁচাও" in the same moment logs as one event).
 
+### `POST /sos/alert`
+
+Send an SMTP fallback alert. Requires a valid SafeHer bearer token, SMTP configuration, and recipient emails saved to the account's emergency contacts or trusted circles. A batch accepts 1–30 recipients; duplicate addresses are sent once. Tracking links must use an allowed SafeHer origin and `/track/{session_id}` path. Rate limit: 5 requests per account per 5 minutes.
+
+```http
+POST /sos/alert HTTP/1.1
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "from_name": "SafeHer user",
+  "from_phone": "—",
+  "location_address": "Location unavailable",
+  "tracking_link": "https://safeher.app/track/7c0a8449-7854-42e8-a5c8-1ae03fe07c31",
+  "time_str": "Nov 4, 2026, 10:30 AM",
+  "recipients": [{"name": "Trusted contact", "email": "contact@example.com"}]
+}
+```
+
+**Response 200:** `{"dispatched": true, "sent": 1, "failed": 0}`. The response includes aggregate counts, not recipient addresses. The endpoint returns `503` when SMTP is not configured, `403` for an unowned recipient, and `429` when rate limited.
+
 ---
 
 ### `GET /heatmap/`
 
-**Curated incident heatmap data** for the map layer.
+**Approximate CrimeDataBD record counts** aggregated into roughly 1 km grid cells within the current Chattogram graph radius. The endpoint uses only the canonical local CSV and works in Lite Mode.
 
-Returns a hand-curated GeoJSON of community-flagged unsafe hotspots. Used by the landing page's map preview and the in-app heatmap toggle.
+The response does not include individual incident points or descriptions. Counts are news-derived, approximate, have no year or victim-gender field, and are not a street-level risk or safety score. Community-submitted incidents are stored separately and are not included in this layer.
 
 ```http
 GET /heatmap/ HTTP/1.1
@@ -635,6 +655,19 @@ GET /heatmap/ HTTP/1.1
 ```json
 {
   "type": "FeatureCollection",
+  "metadata": {
+    "available": true,
+    "source": "CrimeDataBD v4",
+    "license": "CC BY-NC 4.0",
+    "displayed_record_count": 123,
+    "cell_count": 8,
+    "coverage_radius_m": 5000,
+    "grid_cell_degrees": 0.01,
+    "approximate_cell_size_km": 1.0,
+    "temporal_coverage": "Not provided by the source",
+    "victim_gender_field": false,
+    "interpretation": "Approximate news-reported record counts; not a street-level risk or safety score."
+  },
   "features": [
     {
       "type": "Feature",
@@ -643,25 +676,22 @@ GET /heatmap/ HTTP/1.1
         "coordinates": [91.7832, 22.3569]
       },
       "properties": {
-        "intensity": 0.8,
-        "category": "unsafe_lighting",
-        "notes": "Dark underpass after 9 PM"
+        "record_count": 18,
+        "relative_density": 0.75
       }
     }
   ]
 }
 ```
 
-If the curated file is missing, returns an empty `FeatureCollection`.
+If the CSV is missing or cannot be read, returns an empty `FeatureCollection` with `metadata.available: false`. If no valid source records fall within coverage, it returns an empty `features` array with an explanatory metadata message.
 
 ---
 
 ## Authentication
 
 Authentication endpoints for signup, login, and managing emergency contacts.
-All `/auth/*` endpoints require a JWT or HMAC token for `GET /auth/me`,
-`POST /auth/contacts`, and `DELETE /auth/contacts/{id}`. Signup and login
-are public.
+Authentication is backed by local SQLite accounts and SafeHer HMAC tokens. Optional Supabase storage mirrors account identity fields but does not replace local authentication. Protected endpoints include `GET /auth/me`, `GET /auth/sos-contacts`, `POST /auth/contacts`, and `DELETE /auth/contacts/{id}`. Signup and login are public.
 
 ### `POST /auth/signup`
 
@@ -772,6 +802,12 @@ Authorization: Bearer 594fd...<HMAC signed>
 }
 ```
 
+### `GET /auth/sos-contacts`
+
+Returns de-duplicated, validated email recipients from the signed-in user's emergency contacts and trusted-circle members. Requires a bearer token. The frontend uses this endpoint for SOS notifications.
+
+**Response 200:** `{"recipients": [{"id": "...", "name": "Trusted contact", "email": "contact@example.com"}]}`
+
 ### `POST /auth/contacts`
 
 Add an emergency contact for the current user.
@@ -806,7 +842,7 @@ Authorization: Bearer <token>
 
 ## Trusted Circles
 
-Trusted Circles are per-device groupings of contacts (family, friends, roommates) that get SOS alerts. Endpoints accept **either** `Authorization: Bearer <jwt>` (production) **or** `X-Session-Id` (dev fallback).
+Trusted Circles are user-owned groups of contacts (family, friends, roommates) that can receive SOS email alerts. Every endpoint requires an authenticated SafeHer bearer token; the backend derives the owner from the local account and checks ownership on each operation.
 
 ### `POST /circles/`
 
@@ -815,7 +851,7 @@ Trusted Circles are per-device groupings of contacts (family, friends, roommates
 ```http
 POST /circles/ HTTP/1.1
 Content-Type: application/json
-X-Session-Id: dev-abc123
+Authorization: Bearer <SafeHer token>
 
 { "name": "Family", "color": "#FF4D6D" }
 ```
@@ -832,7 +868,7 @@ X-Session-Id: dev-abc123
 ```json
 {
   "id": "cir-7a8b9c-...",
-  "owner_id": "dev-abc123",
+  "owner_id": "594fd...",
   "name": "Family",
   "color": "#FF4D6D",
   "member_count": 0
@@ -843,17 +879,17 @@ X-Session-Id: dev-abc123
 
 | Status | Reason |
 |---|---|
-| `401` | Missing or invalid `X-Session-Id` |
+| `401` | Missing or invalid SafeHer bearer token |
 
 ---
 
 ### `GET /circles/`
 
-**List all circles owned by the current session.**
+**List all circles owned by the authenticated user.**
 
 ```http
 GET /circles/ HTTP/1.1
-X-Session-Id: dev-abc123
+Authorization: Bearer <SafeHer token>
 ```
 
 **Response 200**
@@ -862,14 +898,14 @@ X-Session-Id: dev-abc123
 [
   {
     "id": "cir-7a8b9c-...",
-    "owner_id": "dev-abc123",
+    "owner_id": "594fd...",
     "name": "Family",
     "color": "#FF4D6D",
     "member_count": 3
   },
   {
     "id": "cir-d4e5f6-...",
-    "owner_id": "dev-abc123",
+    "owner_id": "594fd...",
     "name": "Roommates",
     "color": "#14b8a6",
     "member_count": 2
@@ -885,7 +921,7 @@ X-Session-Id: dev-abc123
 
 ```http
 GET /circles/cir-7a8b9c HTTP/1.1
-X-Session-Id: dev-abc123
+Authorization: Bearer <SafeHer token>
 ```
 
 **Response 200**
@@ -893,7 +929,7 @@ X-Session-Id: dev-abc123
 ```json
 {
   "id": "cir-7a8b9c",
-  "owner_id": "dev-abc123",
+  "owner_id": "594fd...",
   "name": "Family",
   "color": "#FF4D6D",
   "member_count": 3,
@@ -918,7 +954,7 @@ X-Session-Id: dev-abc123
 
 | Status | Reason |
 |---|---|
-| `404` | Circle does not exist or is not owned by this session |
+| `404` | Circle does not exist or is not owned by this user |
 
 ---
 
@@ -928,7 +964,7 @@ X-Session-Id: dev-abc123
 
 ```http
 DELETE /circles/cir-7a8b9c HTTP/1.1
-X-Session-Id: dev-abc123
+Authorization: Bearer <SafeHer token>
 ```
 
 **Response 200**
@@ -941,7 +977,7 @@ X-Session-Id: dev-abc123
 
 | Status | Reason |
 |---|---|
-| `404` | Circle does not exist or is not owned by this session |
+| `404` | Circle does not exist or is not owned by this user |
 
 ---
 
@@ -952,7 +988,7 @@ X-Session-Id: dev-abc123
 ```http
 POST /circles/cir-7a8b9c/members HTTP/1.1
 Content-Type: application/json
-X-Session-Id: dev-abc123
+Authorization: Bearer <SafeHer token>
 
 {
   "name": "Best friend",
@@ -984,7 +1020,7 @@ X-Session-Id: dev-abc123
 
 | Status | Reason |
 |---|---|
-| `404` | Circle does not exist or is not owned by this session |
+| `404` | Circle does not exist or is not owned by this user |
 | `422` | Invalid contact (HTML, quotes, or empty) |
 
 ---
@@ -995,7 +1031,7 @@ X-Session-Id: dev-abc123
 
 ```http
 DELETE /circles/cir-7a8b9c/members/mem-ccc HTTP/1.1
-X-Session-Id: dev-abc123
+Authorization: Bearer <SafeHer token>
 ```
 
 **Response 200**
@@ -1008,7 +1044,7 @@ X-Session-Id: dev-abc123
 
 | Status | Reason |
 |---|---|
-| `404` | Circle or member does not exist (or not owned by this session) |
+| `404` | Circle or member does not exist (or not owned by this user) |
 
 ---
 
@@ -1034,8 +1070,7 @@ If you need server-initiated notifications (e.g. when a Trusted Circle member jo
 
 ### Planned
 
-- 🔜 `/auth/login`, `/auth/signup` — Supabase Auth integration
-- 🔜 `/notifications/dispatch` — server-side SOS alert dispatch
+- 🔜 Supabase Auth integration (current account authentication remains SQLite/HMAC)
 - 🔜 Webhooks for circle events
 - 🔜 Pagination on `/incidents/nearby`
 - 🔜 Streaming responses on `/chat/`
@@ -1050,7 +1085,7 @@ If you need server-initiated notifications (e.g. when a Trusted Circle member jo
 |---|---|
 | `200` | Success |
 | `201` | Created |
-| `401` | Unauthorized (missing/invalid `X-Session-Id`) |
+| `401` | Unauthorized (missing or invalid bearer token on protected endpoints) |
 | `404` | Not found |
 | `422` | Validation error |
 | `429` | Rate limit exceeded |
@@ -1062,9 +1097,9 @@ If you need server-initiated notifications (e.g. when a Trusted Circle member jo
 | Type | Used in |
 |---|---|
 | `FeatureCollection` | `/route/`, `/incidents/nearby`, `/heatmap/` |
-| `Feature` | each route, each incident, each hotspot |
+| `Feature` | each route, each incident, each aggregate heatmap cell |
 | `LineString` | routes |
-| `Point` | incidents, hotspots |
+| `Point` | incidents and approximate aggregate-cell centers |
 
 ### Bangladesh bounding box
 

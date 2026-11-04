@@ -1,0 +1,36 @@
+{
+  "name": "SafeHer Calm Field Guide",
+  "colors": {
+    "canvas": "#F7F8F3",
+    "surface": "#FFFFFF",
+    "surfaceSoft": "#EEF2EA",
+    "ink": "#18332B",
+    "inkSecondary": "#52665D",
+    "inkMuted": "#68776F",
+    "brand": "#486A55",
+    "map": "#526F82",
+    "mapSoft": "#E8EFF2",
+    "emergency": "#B5413B",
+    "emergencySoft": "#F8E9E7",
+    "warning": "#8C672D",
+    "success": "#347451",
+    "border": "#DCE4DC"
+  },
+  "type": {
+    "sans": "Plus Jakarta Sans",
+    "bengali": "Noto Sans Bengali",
+    "mono": "JetBrains Mono"
+  },
+  "spacingPx": [4, 8, 12, 16, 24, 32, 48, 64],
+  "radiiPx": {
+    "control": 10,
+    "panel": 14,
+    "composition": 18,
+    "round": 999
+  },
+  "motionMs": {
+    "quick": 140,
+    "standard": 220,
+    "reveal": 320
+  }
+}

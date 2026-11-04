@@ -4,6 +4,8 @@ import 'leaflet/dist/leaflet.css';
 import { Navigation, Loader2, Layers, AlertTriangle } from 'lucide-react';
 import { api } from '../../lib/api';
 import { IncidentReportModal } from '../sos/IncidentReportModal';
+import { useLanguage } from '../../i18n/LanguageContext';
+import './map.css';
 
 // Fix Leaflet's default icon paths (broken by bundlers)
 delete L.Icon.Default.prototype._getIconUrl;
@@ -14,6 +16,11 @@ L.Icon.Default.mergeOptions({
 });
 
 export function MapContainer() {
+  const { t, language } = useLanguage();
+  const translateRef = useRef(t);
+  const languageRef = useRef(language);
+  translateRef.current = t;
+  languageRef.current = language;
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const routeLayerRef = useRef(null);
@@ -32,6 +39,8 @@ export function MapContainer() {
 
   // Heatmap toggle
   const [showHeatmap, setShowHeatmap] = useState(true);
+  const [heatmapMetadata, setHeatmapMetadata] = useState(null);
+  const [heatmapReady, setHeatmapReady] = useState(false);
 
   // Incident reporting
   const [showReportModal, setShowReportModal] = useState(false);
@@ -43,7 +52,7 @@ export function MapContainer() {
     // Initialize Leaflet map centered on Chittagong
     const map = L.map(mapContainerRef.current, {
       zoomControl: false,
-    }).setView([22.3569, 91.8033], 13);
+    }).setView([22.3569, 91.7832], 13);
 
     // Free OpenStreetMap tiles — no API key needed
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -64,74 +73,88 @@ export function MapContainer() {
     };
   }, []);
 
-  // Load heatmap from backend (hand-curated hotspots)
+  // Load approximate CrimeDataBD counts aggregated by the backend into ~1 km cells.
   useEffect(() => {
     let cancelled = false;
-    async function load() {
+    async function loadHeatmap() {
       try {
-        const res = await fetch(`${api.base}/heatmap/`);
-        if (!res.ok) return;
-        const geo = await res.json();
+        const geo = await api.heatmap();
         if (cancelled) return;
+        setHeatmapMetadata(geo?.metadata || null);
         const features = geo?.features || [];
-        const hotspots = features
-          .filter(f => f?.geometry?.coordinates?.length === 2)
-          .map(f => ({
-            lat: f.geometry.coordinates[1],
-            lng: f.geometry.coordinates[0],
-            weight: Number(f.properties?.weight ?? 0.5),
-            category: f.properties?.category || 'incident',
-            id: f.properties?.id || `${f.geometry.coordinates.join(',')}`,
-          }));
+        const cells = features.flatMap((feature) => {
+          const coordinates = feature?.geometry?.coordinates;
+          const recordCount = Number(feature?.properties?.record_count);
+          const relativeDensity = Number(feature?.properties?.relative_density);
+          if (
+            feature?.geometry?.type !== 'Point'
+            || !Array.isArray(coordinates)
+            || coordinates.length !== 2
+            || !coordinates.every(Number.isFinite)
+            || !Number.isFinite(recordCount)
+            || recordCount <= 0
+            || !Number.isFinite(relativeDensity)
+          ) return [];
+
+          return [{
+            lat: coordinates[1],
+            lng: coordinates[0],
+            recordCount,
+            relativeDensity: Math.min(1, Math.max(0, relativeDensity)),
+          }];
+        });
+
         if (heatmapLayerRef.current) {
           mapRef.current?.removeLayer(heatmapLayerRef.current);
           heatmapLayerRef.current = null;
         }
         const layerGroup = L.layerGroup();
-        hotspots.forEach(h => {
-          // color & radius scale with the curated weight (0-1)
-          const radius = 120 + h.weight * 380;  // meters
-          const color = h.weight >= 0.7 ? '#dc2626'   // red — high risk
-                     : h.weight >= 0.45 ? '#f59e0b'  // amber — moderate
-                     : '#facc15';                     // yellow — caution
-          L.circle([h.lat, h.lng], {
-            radius,
+        cells.forEach((cell) => {
+          const color = '#526F82';
+          L.circle([cell.lat, cell.lng], {
+            radius: 450,
             color,
             fillColor: color,
-            fillOpacity: 0.18,
+            fillOpacity: 0.06 + cell.relativeDensity * 0.22,
             weight: 1,
             opacity: 0.6,
             interactive: true,
           })
             .bindTooltip(
-              `<div style="font-size:0.75rem"><strong>Reported incidents</strong><br/>` +
-              `Category: ${h.category}<br/>Risk: ${Math.round(h.weight * 100)}%</div>`,
+              () => {
+                const translate = translateRef.current;
+                const count = new Intl.NumberFormat(languageRef.current === 'bn' ? 'bn-BD' : 'en').format(cell.recordCount);
+                return `<div style="font-size:0.75rem"><strong>${translate('Approximate source count')}</strong><br/>` +
+                  `${count} ${translate('CrimeDataBD record(s) in this ~1 km cell.')}<br/>` +
+                  `${translate('Not a street-level safety score.')}</div>`;
+              },
               { direction: 'top', offset: [0, -8] }
             )
             .addTo(layerGroup);
         });
         heatmapLayerRef.current = layerGroup;
-        if (showHeatmap) layerGroup.addTo(mapRef.current);
+        setHeatmapReady(true);
       } catch (err) {
-        // Silently ignore — heatmap is decorative, not critical
+        if (cancelled) return;
+        setHeatmapMetadata({ available: false, message: 'CrimeDataBD heatmap is unavailable.' });
         console.warn('Heatmap load failed:', err);
       }
     }
-    if (mapRef.current) load();
+    if (mapRef.current) loadHeatmap();
     return () => { cancelled = true; };
-  }, [showHeatmap]);
+  }, []);
 
-  // Toggle heatmap layer visibility without re-fetching
+  // Toggle visibility after loading without requesting the dataset again.
   useEffect(() => {
     const layer = heatmapLayerRef.current;
     const map = mapRef.current;
-    if (!layer || !map) return;
+    if (!heatmapReady || !layer || !map) return;
     if (showHeatmap) {
       if (!map.hasLayer(layer)) layer.addTo(map);
     } else {
       if (map.hasLayer(layer)) map.removeLayer(layer);
     }
-  }, [showHeatmap]);
+  }, [showHeatmap, heatmapReady]);
 
   const geocodeDebounced = async (which) => {
     const name = which === 'start' ? startPoint : endPoint;
@@ -216,17 +239,17 @@ export function MapContainer() {
     const features = geojson.features || [];
     const layerGroup = L.layerGroup();
 
-    // Safe route (teal)
+    // Heuristic route (moss)
     if (features[0]) {
       L.geoJSON(features[0], {
-        style: { color: '#10b981', weight: 6, opacity: 0.85 },
+        style: { color: '#486A55', weight: 6, opacity: 0.9 },
       }).addTo(layerGroup);
     }
 
-    // Fast route (amber, dashed)
+    // Distance-only route (muted amber, dashed)
     if (features[1]) {
       L.geoJSON(features[1], {
-        style: { color: '#f59e0b', weight: 3, opacity: 0.6, dashArray: '8 6' },
+        style: { color: '#8C672D', weight: 3, opacity: 0.75, dashArray: '8 6' },
       }).addTo(layerGroup);
     }
 
@@ -242,40 +265,18 @@ export function MapContainer() {
   };
 
   return (
-    <div style={{ position: 'relative', height: '100%', width: '100%' }}>
-      <div ref={mapContainerRef} style={{ height: '100%', width: '100%' }} />
+    <div className="map-container">
+      <div ref={mapContainerRef} className="map-canvas" />
 
       {/* Floating action buttons — heatmap toggle + report incident */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '1rem',
-          right: '1rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.5rem',
-          zIndex: 1000,
-        }}
-      >
+      <div className="map-controls">
         <button
           type="button"
           onClick={() => setShowHeatmap(v => !v)}
-          aria-label="Toggle incident heatmap"
-          title={showHeatmap ? 'Hide incident heatmap' : 'Show incident heatmap'}
-          className="btn"
-          style={{
-            width: 44,
-            height: 44,
-            padding: 0,
-            background: showHeatmap ? 'var(--color-brand)' : 'rgba(255,255,255,0.95)',
-            color: showHeatmap ? 'white' : 'var(--color-text-primary)',
-            border: 'none',
-            borderRadius: '50%',
-            boxShadow: 'var(--shadow-md, 0 4px 12px rgba(0,0,0,0.2))',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+          aria-label={t('Toggle reported-record density layer')}
+          title={t(showHeatmap ? 'Hide reported-record density' : 'Show reported-record density')}
+          className={`btn map-control ${showHeatmap ? 'map-control--selected' : ''}`}
+          aria-pressed={showHeatmap}
         >
           <Layers size={18} />
         </button>
@@ -289,26 +290,25 @@ export function MapContainer() {
             setReportCoords({ lat: c.lat, lng: c.lng });
             setShowReportModal(true);
           }}
-          aria-label="Report an incident here"
-          title="Report an incident at map center"
-          className="btn"
-          style={{
-            width: 44,
-            height: 44,
-            padding: 0,
-            background: 'var(--color-danger)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '50%',
-            boxShadow: 'var(--shadow-danger, 0 4px 12px rgba(220,38,38,0.4))',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+          aria-label={t('Report an incident here')}
+          title={t('Report an incident at map center')}
+          className="btn map-control map-control--report"
         >
           <AlertTriangle size={18} />
         </button>
       </div>
+
+      {showHeatmap && (
+        <div role="note" className="map-data-note">
+          <strong>{t('CrimeDataBD v4 · CC BY-NC 4.0')}</strong>
+          <div>
+            {heatmapMetadata?.displayed_record_count > 0
+              ? `${new Intl.NumberFormat(language === 'bn' ? 'bn-BD' : 'en').format(heatmapMetadata.displayed_record_count)} ${t('approximate records')} · ~${new Intl.NumberFormat(language === 'bn' ? 'bn-BD' : 'en', { maximumFractionDigits: 1 }).format(heatmapMetadata.approximate_cell_size_km)} ${t('km cells')} · ${new Intl.NumberFormat(language === 'bn' ? 'bn-BD' : 'en', { maximumFractionDigits: 1 }).format(Number(heatmapMetadata.coverage_radius_m) / 1000)} ${t('km graph coverage')} · ${t('darker fill means more source records')}`
+              : t(heatmapMetadata?.message || 'Loading reported-record density…')}
+          </div>
+          <div>{t('News-derived; no year or victim-gender field. Not a safety score.')}</div>
+        </div>
+      )}
 
       {/* Incident report modal */}
       {showReportModal && (
@@ -316,47 +316,41 @@ export function MapContainer() {
           initialCoords={reportCoords}
           onClose={() => setShowReportModal(false)}
           onReported={() => {
-            // After a successful report, refresh nearby incidents to show it on the map
-            // (heatmap layer is a static curated set, so we just close the modal here)
+            // Community reports are stored separately; this layer shows the
+            // canonical CrimeDataBD dataset only.
             setShowReportModal(false);
           }}
         />
       )}
 
       {/* Floating Route Planner Panel */}
-      <div
-        className="glass-panel"
-        style={{
-          position: 'absolute',
-          top: '1rem',
-          left: '1rem',
-          right: '1rem',
-          padding: '1rem',
-          zIndex: 1000,
-        }}
-      >
-        <h3 style={{ fontSize: '1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Navigation size={18} color="var(--color-brand)" /> Plan Safe Route
+      <div className="glass-panel map-route-panel">
+        <h3 className="map-route-panel__title">
+          <Navigation size={18} color="var(--color-brand)" /> {t('Plan route options')}
         </h3>
 
-        <form onSubmit={handleRouteSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <form onSubmit={handleRouteSubmit} className="map-route-form">
           {/* Start input */}
-          <div style={{ position: 'relative' }}>
+          <div>
+            <label className="sr-only" htmlFor="route-start">{t('Starting point')}</label>
             <input
+              id="route-start"
               type="text"
               className="input-field"
-              placeholder="Start point (e.g. GEC Circle)"
+              aria-label={t('Starting point')}
+              placeholder={t('Start point (e.g. GEC Circle)')}
               value={startPoint}
               onChange={(e) => { setStartPoint(e.target.value); setStartCoords(null); setStartCandidates([]); }}
               onBlur={() => setTimeout(() => geocodeDebounced('start'), 250)}
               autoComplete="off"
-              style={{ fontSize: '0.875rem', padding: '0.5rem 0.75rem' }}
             />
             {startCandidates.length > 1 && (
-              <ul role="listbox" style={dropdownStyle}>
+              <ul className="map-suggestions">
                 {startCandidates.map((c, i) => (
-                  <li key={i} role="option" onClick={() => pickCandidate('start', c)} onMouseDown={(e) => e.preventDefault()} style={dropdownItemStyle}>
-                    {c.name}
+                  <li key={i}>
+                    <button type="button" className="map-suggestion" onClick={() => pickCandidate('start', c)}>
+                      {c.name}
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -364,59 +358,66 @@ export function MapContainer() {
           </div>
 
           {/* End input */}
-          <div style={{ position: 'relative' }}>
+          <div>
+            <label className="sr-only" htmlFor="route-destination">{t('Destination')}</label>
             <input
+              id="route-destination"
               type="text"
               className="input-field"
-              placeholder="Destination (e.g. 2 No Gate)"
+              aria-label={t('Destination')}
+              placeholder={t('Destination (e.g. 2 No Gate)')}
               value={endPoint}
               onChange={(e) => { setEndPoint(e.target.value); setEndCoords(null); setEndCandidates([]); }}
               onBlur={() => setTimeout(() => geocodeDebounced('end'), 250)}
               autoComplete="off"
-              style={{ fontSize: '0.875rem', padding: '0.5rem 0.75rem' }}
             />
             {endCandidates.length > 1 && (
-              <ul role="listbox" style={dropdownStyle}>
+              <ul className="map-suggestions">
                 {endCandidates.map((c, i) => (
-                  <li key={i} role="option" onClick={() => pickCandidate('end', c)} onMouseDown={(e) => e.preventDefault()} style={dropdownItemStyle}>
-                    {c.name}
+                  <li key={i}>
+                    <button type="button" className="map-suggestion" onClick={() => pickCandidate('end', c)}>
+                      {c.name}
+                    </button>
                   </li>
                 ))}
               </ul>
             )}
           </div>
 
-          <button type="submit" className="btn btn-primary" disabled={isLoadingRoute || !startPoint || !endPoint} style={{ padding: '0.5rem' }}>
-            {isLoadingRoute ? <Loader2 className="animate-spin" size={18} /> : 'Find Safe Route'}
+          <button type="submit" className="btn btn-primary map-route-submit" disabled={isLoadingRoute || !startPoint || !endPoint}>
+            {isLoadingRoute ? <Loader2 className="animate-spin" size={18} aria-label={t('Loading')} /> : t('Compare routes')}
           </button>
           {errorMsg && (
-            <div style={{ color: 'var(--color-danger)', fontSize: '0.75rem', textAlign: 'center' }}>{errorMsg}</div>
+            <div role="alert" className="map-route-error">{t(errorMsg)}</div>
           )}
         </form>
 
         {/* Route result summary */}
         {routeData?.features?.[0]?.properties && (() => {
-          const safe = routeData.features[0].properties;
+          const heuristicRoute = routeData.features[0].properties;
           return (
-            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--color-border)', fontSize: '0.875rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>Safety Score</span>
-                <strong style={{ color: 'var(--color-success)' }}>{safe.avg_safety_score?.toFixed(2) ?? '—'} / 1.0</strong>
+            <div className="map-route-results">
+              <div className="map-route-results__row">
+                <span>{t('Heuristic route score')}</span>
+                <strong>{heuristicRoute.avg_safety_score?.toFixed(2) ?? '—'} / 1.0</strong>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>Distance</span>
-                <strong>{safe.distance_display || `${Math.round(safe.distance_m || 0)}m`}</strong>
+              <div className="map-route-results__row">
+                <span>{t('Distance')}</span>
+                <strong>{heuristicRoute.distance_display || `${Math.round(heuristicRoute.distance_m || 0)}m`}</strong>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>Walk time</span>
-                <strong>{safe.walk_time_min ?? '—'} min</strong>
+              <div className="map-route-results__row">
+                <span>{t('Walk time')}</span>
+                <strong>{heuristicRoute.walk_time_min ?? '—'} {t('min')}</strong>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.75rem', fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ width: 10, height: 3, background: '#10b981', borderRadius: 2 }} /> Safe
+              <p className="map-route-results__disclaimer">
+                {t('Model estimate only; it is not a probability or a guarantee of safety.')}
+              </p>
+              <div className="map-route-legend">
+                <span>
+                  <i className="map-route-key map-route-key--heuristic" /> {t('Heuristic route')}
                 </span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ width: 10, height: 2, background: '#f59e0b', borderRadius: 2 }} /> Fast
+                <span>
+                  <i className="map-route-key map-route-key--distance" /> {t('Distance-only')}
                 </span>
               </div>
             </div>
@@ -426,18 +427,3 @@ export function MapContainer() {
     </div>
   );
 }
-
-const dropdownStyle = {
-  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
-  listStyle: 'none', margin: '4px 0 0', padding: 0,
-  background: 'var(--color-bg-secondary)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius-md)',
-  maxHeight: '180px', overflowY: 'auto',
-  boxShadow: '0 8px 24px -8px rgba(0,0,0,0.6)',
-};
-
-const dropdownItemStyle = {
-  padding: '0.5rem 0.75rem', fontSize: '0.8rem', cursor: 'pointer',
-  borderBottom: '1px solid var(--color-border)',
-};

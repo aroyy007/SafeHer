@@ -12,7 +12,7 @@
 3. [LLM provider — Gemini OR Groq](#3-llm-provider--gemini-or-groq)
 4. [HuggingFace — embedding model downloads](#4-huggingface--embedding-model-downloads)
 5. [Supabase — backend persistence (optional, recommended for production)](#5-supabase--backend-persistence-optional-recommended-for-production)
-6. [Firebase — RTDB, phone auth, storage](#6-firebase--live-location-phone-otp-and-profile-photo-storage)
+6. [Firebase — RTDB, session expiry, and storage](#6-firebase--live-location-and-profile-photo-storage)
 7. [EmailJS — SOS email alerts (frontend)](#7-emailjs--sos-email-alerts-frontend)
 8. [Mapbox — interactive maps (frontend)](#8-mapbox--interactive-maps-frontend)
 9. [Local development vs. production — what changes](#9-local-development-vs-production--what-changes)
@@ -29,7 +29,7 @@
 | **Groq API**      | backend           | LLM primary (cheaper, faster, larger free tier)   | No (or use Gemini) |
 | **HuggingFace**   | backend           | Downloads `l3cube-pune/bengali-sentence-similarity-sbert` on first run | No |
 | **Supabase**      | backend           | Postgres backend for incidents/SOS (instead of SQLite) | Yes — SQLite works for demo |
-| **Firebase RTDB** | frontend          | Real-time live location sharing between user & trusted contacts | Yes — core feature for track page |
+| **Firebase RTDB** | frontend + scheduled function | Real-time location sharing, 24-hour expiry, and automatic cleanup | Yes — core feature for track page |
 | **EmailJS**       | frontend          | Sends SOS email alerts when SOS is triggered      | Yes — demo fakes it; EmailJS wires it to real Gmail |
 | **Mapbox**        | frontend          | Tiles + dark-mode style for all maps              | Yes — Leaflet fallback uses OSM tiles |
 
@@ -45,7 +45,8 @@
 3. Mapbox                          ← required for nice maps
 4. Supabase                        ← optional, do AFTER the basic demo works
 5. Firebase Realtime Database      ← optional, needed only for the /track page
-6. EmailJS                         ← optional, needed only for real SOS emails
+6. Firebase scheduled cleanup      ← optional deploy; removes expired track nodes hourly
+7. EmailJS                         ← optional, needed only for real SOS emails
 ```
 
 Doing them in this order means you always have a working demo at every step — and only one thing is changing at once if something breaks.
@@ -121,129 +122,33 @@ You should see `"status": "ok"` and `"knowledge_base": { "document_count": 78, �
 
 ---
 
-## 5. Supabase — backend persistence (optional, recommended for production)
+## 5. Supabase — optional backend storage
 
-Why: by default SafeHer uses local SQLite (`backend/data/safeher.db`). It works fine for one demo machine but doesn't survive Render restarts. Supabase gives you managed Postgres at the free tier.
-
-**Only enable this once the basic demo works.** It adds a network dependency.
+SafeHer keeps authentication and emergency contacts in SQLite. Setting `USE_SUPABASE=true` moves community incidents, trusted circles, and SOS audit records to Supabase. Account identity fields are mirrored only to satisfy database foreign keys; password hashes remain in SQLite. This is SafeHer application authentication plus Supabase storage, not Supabase Auth.
 
 ### 5.1 Create a Supabase project
 
-1. Open <https://supabase.com/dashboard> → **New project**.
-2. Pick the closest region (Singapore for Bangladesh users), give it a DB password (save it!), wait ~2 min for provisioning.
-3. Once the project is `ACTIVE`, copy three values from **Settings → API**:
-   - **Project URL** — e.g. `https://abc.supabase.co`
-   - **Publishable / anon key** — goes into `SUPABASE_KEY` (browser-safe, RLS-restricted)
-   - **service_role key** — goes into `SUPABASE_SERVICE_KEY` (backend only, bypasses RLS)
-4. Also copy **JWT Secret** from **Settings → API → JWT Secret** → goes into `SUPABASE_JWT_SECRET`. The backend uses this to verify frontend-issued access tokens without any network round-trip.
+1. Create a project in the Supabase dashboard.
+2. Copy the project URL and the server-only service-role key. The backend must have `SUPABASE_SERVICE_KEY`; the publishable key is not an admin fallback.
+3. Set `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` in `backend/.env`. `SUPABASE_KEY` and `SUPABASE_JWT_SECRET` are not required for the SQLite/HMAC login flow.
 
-### 5.2 Create tables
+### 5.2 Apply the canonical schema
 
-In Supabase → **SQL Editor**, paste this once and click **Run**:
+Run [`supabase_schema.sql`](supabase_schema.sql) once in the Supabase SQL editor. That file is the source of truth for tables, RLS, and the `get_incidents_within` RPC. Do not use the older SQL snippets from archived setup notes.
 
-```sql
-create extension if not exists "pgcrypto";
+### 5.3 Enable the adapter
 
--- Users (auth-bound; the password_hash column is unused unless you
--- use the legacy HMAC path; Supabase Auth manages its own auth.users table)
-create table if not exists public.users (
-  id              uuid primary key default gen_random_uuid(),
-  name            text        not null,
-  email           citext      not null unique,
-  phone           text,
-  password_hash   text        not null,
-  home_area       text,                                -- neighborhood context
-  photo_url       text,                                -- public URL of profile photo
-  phone_verified  boolean     not null default false,
-  created_at      timestamptz not null default now()
-);
+Set:
 
--- Backfill columns for older SafeHer deployments (idempotent)
-alter table public.users add column if not exists home_area       text;
-alter table public.users add column if not exists photo_url       text;
-alter table public.users add column if not exists phone_verified  boolean not null default false;
-
-create table if not exists public.emergency_contacts (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references public.users(id) on delete cascade,
-  name        text not null,
-  phone       text not null,
-  email       text,                                    -- optional; used for SOS EmailJS
-  relation    text default 'Friend',
-  created_at  timestamptz not null default now()
-);
-create index if not exists idx_emergency_contacts_user
-  on public.emergency_contacts(user_id);
-
-create table if not exists public.sos_events (
-  id                bigserial primary key,
-  session_id        text not null,
-  lat               double precision,
-  lng               double precision,
-  timestamp_ms      bigint,
-  trigger_method    text,                             -- button_hold | voice_command | disguise_mode | test
-  lang_at_trigger   text,
-  created_at        timestamptz not null default now()
-);
-create index if not exists idx_sos_events_session
-  on public.sos_events(session_id);
-
--- Optional, for Trusted Circles
-create table if not exists public.circles (
-  id          uuid primary key default gen_random_uuid(),
-  owner_id    uuid not null references public.users(id) on delete cascade,
-  name        text not null,
-  color       text default '#FF4D6D',
-  created_at  timestamptz not null default now()
-);
-create index if not exists idx_circles_owner on public.circles(owner_id);
-
-create table if not exists public.circle_members (
-  id          uuid primary key default gen_random_uuid(),
-  circle_id   uuid not null references public.circles(id) on delete cascade,
-  name        text not null,
-  contact     text not null,
-  relation    text,
-  created_at  timestamptz not null default now()
-);
-create index if not exists idx_members_circle on public.circle_members(circle_id);
-
--- Row Level Security — the service-role key bypasses RLS, but on the
--- path where the anon key is used (or Supabase Auth issues a JWT to
--- the browser), these policies prevent cross-user reads.
-alter table public.users             enable row level security;
-alter table public.emergency_contacts enable row level security;
-alter table public.sos_events        enable row level security;
-
--- Example: a user can read their own user row using their Supabase Auth uid
--- create policy "users read own" on public.users
---   for select using (auth.uid() = id);
-```
-
-### 5.3 Wire it up
-
-In `backend/.env`:
-
-```
+```dotenv
 USE_SUPABASE=true
 SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
-SUPABASE_KEY=sb_publishable_…                       # publishable / anon key (browser-safe)
-SUPABASE_SERVICE_KEY=eyJhbGciOi…service-role…       # service-role key (backend only)
-SUPABASE_JWT_SECRET=your-project-jwt-secret         # for verifying frontend-issued JWTs
+SUPABASE_SERVICE_KEY=your-server-only-service-role-key
 ```
 
-Restart uvicorn. The backend will switch from SQLite to Supabase automatically — the routers don't change.
+Restart the backend. `docker compose` reads defaults from `backend/.env.example`; values in `backend/.env` override them. Existing SQLite auth and contacts remain local. Supabase schema changes are not applied automatically: run the canonical SQL explicitly before enabling the adapter.
 
-### Verify it works
-
-```bash
-curl -X POST http://localhost:8000/incidents/ \
-  -H "Content-Type: application/json" \
-  -d '{"session_id":"smoke","latitude":22.3569,"longitude":91.8033,"category":"harassment","description":"test","timestamp":1}'
-# Then in Supabase Table Editor, the row should appear.
-```
-
-If you see `Supabase URL and Key must be set in .env`, restart uvicorn so Pydantic re-reads the env.
+The repository has not been connected to or migrated against a live Supabase project as part of this change. Configure and verify this against a non-production project before deploying.
 
 ---
 
@@ -257,8 +162,10 @@ Why: SafeHer uses two Firebase services in the browser:
 2. **Storage** — the user's profile photo is uploaded here and shown on
    the `/track` page during SOS.
 
-**Frontend-only.** No backend changes needed (the backend verifies the
-Supabase Auth JWT — we removed Firebase phone OTP in v0.3).
+The browser writes live location/profile data to Realtime Database. A
+scheduled Firebase Function uses the Admin SDK to remove expired sessions.
+SafeHer login uses its local SQLite/HMAC account flow; Firebase is not used
+for user authentication.
 
 ### 6.1 Create a Firebase project
 
@@ -268,24 +175,11 @@ Supabase Auth JWT — we removed Firebase phone OTP in v0.3).
 4. In the left sidebar → **Build → Realtime Database** → **Create Database**.
 5. Choose region (United States or asia-southeast1 for Bangladesh) → start in **locked mode** (you'll open it in the next step).
 
-### 6.2 Set realtime-DB security rules
+### 6.2 Set Realtime Database security rules
 
-In the Realtime Database tab → **Rules** tab, replace with:
+Publish the checked-in [`database.rules.json`](database.rules.json) rules in the Realtime Database **Rules** tab. They allow an active, unexpired SOS link to be read without Firebase sign-in, cap new sessions at 24 hours, and prevent clients from extending a session's expiry. Older nodes remain readable only until their last location/profile timestamp is 24 hours old; the cleanup function removes them afterward.
 
-```json
-{
-  "rules": {
-    "locations": {
-      "$user_id": {
-        ".read": "auth == null",
-        ".write": "auth == null"
-      }
-    }
-  }
-}
-```
-
-> **For the demo** we leave auth null so any browser can publish/subscribe. For production, gate reads/writes behind Firebase Auth and per-user rules.
+The current app does not sign in to Firebase, so these rules preserve public-link access for an active session. Anyone who obtains that unguessable link can read its current location and profile until expiry. This change adds expiry controls; it does not add Firebase user authentication.
 
 Click **Publish**.
 
@@ -309,7 +203,7 @@ Restart the frontend dev server with `npm run dev`.
 
 1. Open the app in two browsers (or one + one incognito).
 2. In browser A: trigger the SOS flow or simulate a location update.
-3. In browser B: open `/track?session=<same session id>`.
+3. In browser B: open `/track/<same session id>`.
 4. Browser B's pin should move when browser A's location changes.
 
 If nothing moves, check the browser console — `isFirebaseReady` should be `true` (visible in `firebaseClient.js`).
@@ -336,7 +230,32 @@ was removed in commit 9b27528+).
    - Verification code: `123456`
 4. For your own real BD phone, just enter it in the signup flow.
 
-### 6.5 Enable Firebase Storage (for profile photos)
+### 6.5 Deploy automatic tracking-session cleanup
+
+Every SOS session stores a fixed `expiresAt` timestamp 24 hours after activation. The `/track` page hides its map and profile at that deadline, Realtime Database rules stop serving the session, and a scheduled Cloud Function physically removes the node on its next hourly run. Deletion can therefore occur up to about one hour after the link becomes inactive.
+
+Scheduled Functions use Cloud Scheduler and require a billing-enabled Firebase project (Blaze); charges may apply. Check the current [Firebase scheduled-functions documentation](https://firebase.google.com/docs/functions/schedule-functions?hl=en) before enabling it. The repository configuration targets Node.js 22, which Firebase currently supports for Cloud Functions.
+
+1. Deploy the updated frontend first so new SOS sessions include expiry metadata.
+2. Install or update the Firebase CLI and sign in:
+
+   ```sh
+   npm install -g firebase-tools
+   firebase login
+   ```
+
+3. From the repository root, deploy the Realtime Database rules and scheduled function:
+
+   ```sh
+   firebase deploy --only database,functions --project YOUR_FIREBASE_PROJECT_ID
+   ```
+
+4. When prompted for `FIREBASE_DATABASE_URL`, enter the Realtime Database URL from the Firebase console, such as `https://YOUR_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app`.
+5. Confirm the `cleanupExpiredTrackingSessions` schedule exists in Firebase/Google Cloud after deployment.
+
+This source change does not deploy the function, publish rules, inspect database contents, or verify any live Firebase project. If the function is not deployed, the browser and database rules still stop serving expired data, but old nodes are not physically removed automatically.
+
+### 6.6 Enable Firebase Storage (for profile photos)
 
 SafeHer's signup uploads the user's profile photo so it can be displayed on `/track`.
 
@@ -409,7 +328,7 @@ Restart dev server.
 
 1. Sign up and add at least one emergency contact with a real email.
 2. Trigger SOS. Within ~5 s the contact receives the SafeHer-branded email with a working tracking link.
-3. The tracking link uses the recipient's name and points to `/track?session=…` — opening it should show the user's profile photo + name in the glass header above the map.
+3. The tracking link points to `/track/<session_id>` — opening it should show the user's profile photo + name above the map.
 
 If nothing arrives in 30 s, check the **EmailJS Logs** tab — common causes: Gmail daily limit hit, unauthorized Gmail OAuth, or a template variable mismatch.
 
@@ -457,7 +376,7 @@ Visit any page that uses `useMapbox`. If tiles are gray and you see `[Mapbox tok
 | Live location      | optional — works without Firebase   | required for /track on real devices                      |
 | SOS email          | real via EmailJS (if keys set)       | real via EmailJS                                          |
 | Map tiles          | Mapbox or OSM                       | Mapbox only (OSM too aggressive for prod load)            |
-| Auth               | legacy HMAC token (X-Session-Id OK)  | Supabase JWT (HS256) recommended                          |
+| Auth               | SafeHer HMAC bearer token            | SafeHer HMAC bearer token (SQLite remains authoritative)   |
 | Secret keys        | `secrets.token_urlsafe(48)`        | same — but **never** commit `.env` to git                |
 
 **Render env vars** (set in dashboard, NOT in `.env`):
@@ -471,7 +390,7 @@ USE_SUPABASE=true
 SUPABASE_URL=https://…
 SUPABASE_KEY=sb_publishable_…       # publishable / anon key (browser-safe)
 SUPABASE_SERVICE_KEY=eyJ…           # service-role key (backend only)
-SUPABASE_JWT_SECRET=…               # for verifying frontend access tokens
+SUPABASE_JWT_SECRET=…               # optional compatibility for a JWT mapped to a local account
 SAFEHER_SECRET_KEY=<openssl rand -base64 48>
 SAFEHER_PASSWORD_SALT=<openssl rand -base64 32>
 ALLOWED_ORIGINS=https://safeher.app,https://www.safeher.app
@@ -599,7 +518,7 @@ curl -sS -X POST http://localhost:8000/auth/contacts \
   -d '{"name":"Mum","phone":"+8801811111111","email":"mum@example.com","relation":"Family"}' \
   | python3 -m json.tool
 
-# G. Circle (dual-mode auth)
+# G. Circle (authenticated SafeHer account)
 curl -sS -X POST http://localhost:8000/circles/ \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"name":"Family","color":"#e8476a"}' | python3 -m json.tool

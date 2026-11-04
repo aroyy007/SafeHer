@@ -7,7 +7,7 @@
 [![Backend](https://img.shields.io/badge/backend-FastAPI-009688)]()
 [![Map](https://img.shields.io/badge/map-Mapbox_GL-1a1a1a)]()
 
-SafeHer is a website — not a native app — built so a woman can open it on her phone in an unsafe moment and instantly alert family, share live location, find the safest walking route, and ask an AI assistant questions. The app is **Bengali-first** with a voice SOS trigger (`বাঁচাও`), a **calculator disguise mode** for stealth, and **safe-route scoring** built on 6,574 real Bangladesh crime records.
+SafeHer is a website — not a native app — built so a woman can open it on her phone in an unsafe moment and alert trusted contacts, share live location, compare walking route estimates, and ask an AI assistant questions. The app is **Bengali-first** with a voice SOS trigger (`বাঁচাও`), a **calculator disguise mode** for stealth, and route scoring that uses the news-derived CrimeDataBD records as one heuristic input. These records are approximate and do not identify victim gender; see [the dataset register](datasets.md) for license and limits.
 
 ---
 
@@ -35,7 +35,7 @@ SafeHer is a website — not a native app — built so a woman can open it on he
 | | |
 |---|---|
 | **7,028** | Violence-against-women cases reported in Bangladesh in the first 4 months of 2025 |
-| **6,574** | Crime records from `CrimeDataBD` driving our route safety scoring |
+| **6,574** | Bangladesh CrimeDataBD source records; only approximate records within the Chattogram graph coverage contribute to the map/route layers |
 | **90%** | Women reporting harassment on Dhaka public transit |
 | **2-3%** | Conviction rate for reported violence cases |
 
@@ -57,7 +57,7 @@ Each trigger (a) logs an audit trail server-side, (b) sends personalized emails 
 
 ### 2. Live location share — no install required for family
 
-When SOS fires, the recipient gets a short link like `https://safeher.app/track/abc123`. Anyone with the link sees a Leaflet/OSM map with a pulsing marker, a **prominent profile header** (circular photo + full name + phone with a red pulsing ring), a "live / stale / offline" banner, and one-tap call buttons for **999** (National Emergency) and **10921** (Women & Child Helpline). The session lives in Firebase Realtime Database — no app, no sign-up, no friction.
+When SOS fires, the recipient gets a short link like `https://safeher.app/track/abc123`. Anyone with the active link sees a Leaflet/OSM map with a pulsing marker, a **prominent profile header** (circular photo + full name + phone with a red pulsing ring), a "live / stale / offline" banner, and one-tap call buttons for **999** (National Emergency) and **10921** (Women & Child Helpline). The session expires 24 hours after SOS activation. The map/profile disappear at expiry; a scheduled Firebase Function removes the stored node on its next hourly run.
 
 ### 3. Safe routing — A* + SafetiPin scoring
 
@@ -77,7 +77,8 @@ The frontend renders both as Mapbox line layers (emerald solid = safe, amber das
 ### 4. Bilingual AI assistant (RAG)
 
 - **Detects** Bengali / Banglish / code-mixed / English input
-- **Transliterates** Banglish → Bengali (Avro-style phonetic map, 70+ keywords)
+- **Transliterates** Banglish → Bengali with a local `avro.py` phonetic parser; preserves URLs, emails, numbers, acronyms,
+  Bengali spans, and selected English words in mixed-script input
 - **Normalizes** Unicode with `csebuetnlp/normalizer` (graceful fallback)
 - **Embeds** with `l3cube-pune/bengali-sentence-similarity-sbert`
 - **Retrieves** from a 60+ entry ChromaDB KB across 14 safety categories
@@ -85,9 +86,11 @@ The frontend renders both as Mapbox line layers (emerald solid = safe, amber das
 
 Strict guardrails: **never hallucinates** phone numbers. If retrieval returns nothing, the response is the hard-coded `EMERGENCY_FALLBACK` (999 / 10921).
 
-### 5. Trusted Circles (JWT-authenticated)
+Transliteration runs on the backend and does not call an external translation service. `avro.py` is deterministic but cannot resolve every ambiguous Roman spelling; its upstream license is MIT OR Apache-2.0. The dependency imports the top-level `avro` namespace, so check for a namespace conflict before adding another package that uses it.
 
-Per-user circle CRUD (family, friends, roommates) backed by SQLite (dev) or Supabase (prod). Each circle has members with name + contact + relation. Auth is **dual-mode**: Supabase JWT (HS256) in production, legacy HMAC token for hackathon dev. Used to dispatch SOS alerts.
+### 5. Trusted Circles (authenticated)
+
+Per-user circle CRUD (family, friends, roommates) backed by SQLite locally or Supabase when enabled. Every circle request requires a SafeHer bearer token; `X-Session-Id` is not an identity credential. Email members are eligible for SOS email alerts.
 
 ### 6. Auth — email + password + profile photo
 
@@ -103,7 +106,11 @@ Free-text place names ("GEC Circle", "2 No Gate") resolve to lat/lng via OpenStr
 
 ### 8. Community incident reporting
 
-Anonymous submission of unsafe-area reports (8 categories, 4 time-of-day buckets). Powers a heatmap layer on the map. Capped at 10 reports / hour / session via sliding-window rate limiter.
+Anonymous submission of unsafe-area reports (8 categories, 4 time-of-day buckets), capped at 10 reports / hour / session. Community reports are stored separately and are not currently included in the CrimeDataBD map-density layer.
+
+### 9. Bengali and English interface
+
+Switch the application interface between Bengali and English from the landing, sign-in/sign-up, in-app, or public tracking screen. The selected language is saved in the browser. User-entered content and AI-generated replies remain as written; interface labels, forms, map explanations, SOS states, and tracking notices are localized.
 
 ---
 
@@ -164,6 +171,9 @@ SafeHer/
 ├── Problem.md                        ← problem framing + Bangladesh context
 ├── datasets.md                       ← dataset inventory + sources
 ├── SafeHer_Backend_System_Design.md  ← original design document
+├── firebase.json                     ← Realtime Database rules + scheduled Functions config
+├── database.rules.json               ← active-session expiry and access rules
+├── functions/                        ← hourly expired tracking-session cleanup
 │
 ├── backend/                          ← Python 3.11+ / FastAPI
 │   ├── main.py                       ← entry point
@@ -185,6 +195,7 @@ SafeHer/
 │   │   ├── chat_service.py           ← Gemini / Groq with auto-fallback
 │   │   ├── routing_service.py        ← executor-wrapped A* / Dijkstra
 │   │   ├── incident_service.py
+│   │   ├── heatmap_service.py        ← CSV aggregation for /heatmap
 │   │   ├── sos_service.py
 │   │   └── circles_service.py
 │   ├── routing/
@@ -200,14 +211,13 @@ SafeHer/
 │   ├── language/
 │   │   ├── preprocessor.py           ← detect → transliterate → normalize
 │   │   ├── detector.py               ← 70+ Banglish keywords
-│   │   ├── transliterator.py         ← Avro phonetic map
+│   │   ├── transliterator.py         ← local avro.py adapter + protected spans
 │   │   └── normalizer.py             ← csebuetnlp wrapper
 │   ├── db/
 │   │   ├── local_db.py               ← SQLite fallback (users, contacts, sos_logs, circles)
 │   │   └── supabase_client.py        ← anon + service-role clients + JWT verify
 │   ├── precompute/
 │   │   ├── build_graph.py            ← OSM download + KDE scoring
-│   │   ├── seed_incidents.py
 │   │   └── build_knowledge_base.py
 │   ├── scripts/
 │   │   └── build_all.py              ← one-shot build runner
@@ -271,6 +281,25 @@ SafeHer/
 
 ### 1. Backend
 
+For the lightweight local API, Docker is an alternative to installing
+Python dependencies on the host. Copy the example configuration if you
+need to override provider settings; the Compose defaults use SQLite and
+Lite Mode, so route recommendations need a generated graph and full-stack
+dependencies before they can run.
+
+```bash
+cp backend/.env.example backend/.env
+docker compose up --build
+```
+
+The API is available at `http://localhost:8000`. The named Docker volume
+persists the SQLite database separately from the checked-in CSV. To use
+the full graph/RAG stack, run `INSTALL_FULL_STACK=true docker compose up --build`
+and configure the required graph/model assets and environment flags. See [backend data
+setup](backend/data/README.md).
+
+Host Python setup is also supported:
+
 ```bash
 cd backend
 python -m venv .venv
@@ -327,7 +356,7 @@ cd frontend && npm run build
 | `SUPABASE_URL` | _empty_ | Supabase project URL |
 | `SUPABASE_KEY` | _empty_ | **Publishable / anon key** (browser-safe; RLS-restricted) |
 | `SUPABASE_SERVICE_KEY` | _empty_ | **Service role key** (backend only, bypasses RLS). Falls back to `SUPABASE_KEY` if unset. |
-| `SUPABASE_JWT_SECRET` | _empty_ | HS256 secret for verifying frontend access tokens. Supabase → Settings → API → JWT Secret. |
+| `SUPABASE_JWT_SECRET` | _empty_ | Optional compatibility for JWTs whose subject maps to a local SQLite account. Login uses SafeHer HMAC tokens. |
 | `USE_FIREBASE` | `false` | Switch SOS event storage |
 | `FIREBASE_CREDENTIALS_BASE64` | _empty_ | base64 service-account JSON |
 | `HOST` | `0.0.0.0` | |
@@ -367,11 +396,12 @@ If any Mapbox/Firebase value is missing, the UI shows a clean empty state instea
 
 | File | What | Source | Used by |
 |---|---|---|---|
-| `data/crimedatabd.csv` | 6,574 Bangladesh crime records | Mendeley Data | Safety scoring (KDE) |
+| `data/crimedatabd.csv` | 6,574 Bangladesh crime records | Mendeley Data | Route scoring (KDE) and aggregated `/heatmap` counts |
 | `data/chittagong_walk.graphml` | ~25 MB scored walk graph | `precompute/build_graph.py` | `/route` |
-| `data/chittagong_incidents.geojson` | Curated hotspot pins | Manual + community reports | `/heatmap` |
 | `data/safeher_local.db` | SQLite (incidents, circles, sos_logs) | `db/local_db.init_db()` | All write endpoints |
 | `chroma_store/` | ChromaDB persistent dir | `rag/knowledge_base.seed_if_empty()` | `/chat` RAG |
+
+In Docker Compose, `SAFEHER_DB_PATH` points to `/app/backend/var/safeher_local.db` in a separate named volume. The `backend/data/` directory stays available for the checked-in CSV and generated graph assets.
 
 ### Re-seeding the knowledge base
 
@@ -486,10 +516,10 @@ curl 'http://localhost:8000/geocode/?name=GEC%20Circle'
 # Health
 curl http://localhost:8000/health
 
-# Trusted Circles (requires X-Session-Id header)
+# Trusted Circles (requires Authorization: Bearer <SafeHer token>)
 curl -X POST http://localhost:8000/circles/ \
   -H 'Content-Type: application/json' \
-  -H 'X-Session-Id: dev-test-session-id-1234' \
+  -H 'Authorization: Bearer <SafeHer token>' \
   -d '{"name":"Family"}'
 ```
 
@@ -511,7 +541,7 @@ curl -X POST http://localhost:8000/circles/ \
 
 ## Security & privacy
 
-- **Auth is JWT-bound** — every protected endpoint accepts a Supabase HS256 JWT (production) or a legacy SafeHer HMAC token (dev). The frontend attaches the JWT as `Authorization: Bearer <token>` automatically; the backend verifies the signature against `SUPABASE_JWT_SECRET` with no network round-trip.
+- **Auth is SQLite-backed** — SafeHer HMAC tokens are issued by the backend. Optional Supabase storage does not replace authentication; a compatible JWT is accepted only when its subject maps to a local account.
 - **Trusted Circle membership is ownership-checked** — no cross-owner reads
 - **Passwords hashed** with PBKDF2-HMAC-SHA256, 200k iterations, 16-byte random salt per user. Legacy SHA-256 hashes are auto-upgraded on login.
 - **Disposable email domains blocked** at signup (mailinator, tempmail, etc.)
@@ -520,10 +550,11 @@ curl -X POST http://localhost:8000/circles/ \
 - **SOS alerts go through EmailJS** (no backend logging of recipient addresses)
 - **Rate-limited** by IP for auth routes, by session for incidents
 - **Firebase Storage rules** (you must set these yourself): allow public read on `profile_photos/*`, require auth on write
-- **Firebase RTDB rules** (you must set these yourself): lock `/locations/<uid>` writes to authenticated sessions
+- **Firebase RTDB rules** (you must publish `database.rules.json`): active session links are public to anyone who has the URL, with a fixed 24-hour expiry and writes constrained by that expiry. Firebase Authentication is not wired into the browser flow.
+- **Firebase scheduled cleanup** (optional deployment): configure billing and deploy the hourly `cleanupExpiredTrackingSessions` Cloud Function to physically remove expired location/profile nodes.
 
 For a production deployment beyond the hackathon, add:
-- PostGIS row-level security on Supabase (RLS is on by default — write policies for `sos_events`)
+- Supabase Row Level Security with server-side storage through `sos_logs` (see `supabase_schema.sql`)
 - Rate limiting middleware on a shared store (currently per-process; use Redis for multi-instance)
 - HTTPS-only cookies and CSP headers
 - PII-stripping on chat queries before embedding

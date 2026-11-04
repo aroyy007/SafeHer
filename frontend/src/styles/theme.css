@@ -1,106 +1,82 @@
-/* ==========================================================================
-   SafeHer — Adaline Calm Green theme
-   A minimal, light-mode design system. Soft off-white background, deep
-   forest-green text, muted moss-green accent. Editorial typography stack,
-   generous spacing, restrained motion.
-   ========================================================================== */
-
+/* SafeHer semantic design tokens: calm everyday use, clear emergency states. */
 :root {
-  /* ---------- Core surfaces (light) ---------- */
-  --color-bg-primary: #FBFDF6;        /* Warm off-white — the calm paper feel */
-  --color-bg-secondary: #F1F4EB;      /* Tonal lift — sage-tinted card */
-  --color-bg-tertiary: #E5E7EB;       /* Highest elevation / hairlines */
-  --color-bg-overlay: rgba(10, 29, 8, 0.45);
+  color-scheme: light;
 
-  --color-bg-elevated: var(--color-bg-secondary);
+  --color-bg-primary: #F7F8F3;
+  --color-bg-secondary: #EEF2EA;
+  --color-bg-tertiary: #E5EBE2;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-overlay: rgba(18, 39, 31, 0.46);
 
-  /* ---------- Text ---------- */
-  --color-text-primary: #0A1D08;       /* Forest-black for headings + body */
-  --color-text-secondary: #4A6D47;     /* Muted moss for secondary copy */
-  --color-text-muted: #6B7B68;         /* Helper / meta text */
-  --color-text-on-accent: #FBFDF6;     /* Text that sits on a dark fill */
+  --color-text-primary: #18332B;
+  --color-text-secondary: #52665D;
+  --color-text-muted: #68776F;
+  --color-text-on-accent: #FFFFFF;
 
-  /* ---------- Brand & semantic colors ---------- */
-  --color-brand: #0A1D08;              /* Forest black = primary brand fill */
-  --color-brand-hover: #4A6D47;        /* Moss green on hover */
-  --color-brand-soft: rgba(74, 109, 71, 0.10);
+  --color-brand: #486A55;
+  --color-brand-hover: #3D5A48;
+  --color-brand-soft: rgba(72, 106, 85, 0.1);
+  --color-accent: #486A55;
+  --color-map: #526F82;
+  --color-map-soft: #E8EFF2;
 
-  --color-accent: #4A6D47;             /* Moss — used for accents, links */
+  --color-danger: #B5413B;
+  --color-danger-hover: #963831;
+  --color-danger-bg: #F8E9E7;
+  --color-success: #347451;
+  --color-success-bg: #E8F1EA;
+  --color-warning: #8C672D;
+  --color-warning-bg: #F4EEDF;
+  --color-info: #526F82;
+  --color-info-bg: #E8EFF2;
+  --color-focus-ring: rgba(72, 106, 85, 0.5);
 
-  --color-danger: #B91C1C;             /* Reserved — only for true emergency */
-  --color-danger-hover: #991616;
-  --color-danger-bg: rgba(185, 28, 28, 0.08);
+  --color-border: #DCE4DC;
+  --color-border-strong: #C8D3C9;
+  --color-border-light: rgba(24, 51, 43, 0.1);
+  --color-surface-line: rgba(24, 51, 43, 0.08);
 
-  --color-success: #2F6F3E;            /* Slightly desaturated for the calm palette */
-  --color-success-bg: rgba(47, 111, 62, 0.10);
+  --font-sans: 'Plus Jakarta Sans', 'Noto Sans Bengali', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Noto Sans Bengali', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-bn: 'Noto Sans Bengali', 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Noto Sans Bengali', ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
 
-  --color-warning: #A06A12;            /* Warm amber, less neon */
-  --color-warning-bg: rgba(160, 106, 18, 0.10);
-
-  --color-info: #4A6D47;
-  --color-info-bg: rgba(74, 109, 71, 0.10);
-
-  --color-focus-ring: rgba(74, 109, 71, 0.45);
-
-  /* ---------- Borders ---------- */
-  --color-border: #E5E7EB;
-  --color-border-strong: #D5DAD0;
-  --color-border-light: rgba(10, 29, 8, 0.08);
-  --color-surface-line: rgba(10, 29, 8, 0.06);
-
-  /* ---------- Typography ---------- */
-  /* Body sans — modern, neutral, highly readable. */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  /* Display — tight sans, slightly heavier optical sizing for headlines. */
-  --font-display: 'Inter Tight', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  /* Mono labels / eyebrows / technical accents. */
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
-  /* Bengali — for বাঁচাও etc. */
-  --font-bn: 'Noto Sans Bengali', 'Hind Siliguri', 'Inter', sans-serif;
-
-  /* ---------- Spacing scale ---------- */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 25px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 56px;
-  --space-16: 80px;
-  --space-20: 112px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+  --space-10: 64px;
+  --space-12: 80px;
+  --space-16: 112px;
 
-  /* ---------- Radii (Adaline = gentle & practical) ---------- */
-  --radius-none: 0px;
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-none: 0;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
   --radius-full: 9999px;
 
-  /* ---------- Shadows — flat by default, none in Adaline ---------- */
-  --shadow-sm: 0 1px 2px 0 rgba(10, 29, 8, 0.04);
-  --shadow-md: 0 2px 6px -1px rgba(10, 29, 8, 0.06), 0 1px 3px -1px rgba(10, 29, 8, 0.04);
-  --shadow-lg: 0 6px 16px -4px rgba(10, 29, 8, 0.08);
-  --shadow-danger: 0 0 0 0 rgba(185, 28, 28, 0);
-  --shadow-brand: none;
+  --shadow-sm: 0 1px 2px rgba(24, 51, 43, 0.04);
+  --shadow-md: 0 8px 24px -12px rgba(24, 51, 43, 0.18), 0 2px 5px rgba(24, 51, 43, 0.05);
+  --shadow-lg: 0 22px 60px -28px rgba(24, 51, 43, 0.28);
+  --shadow-danger: 0 8px 20px -10px rgba(181, 65, 59, 0.5);
+  --shadow-brand: 0 10px 26px -14px rgba(72, 106, 85, 0.55);
 
-  /* ---------- Glass — kept for floating surfaces but with calm palette ---------- */
-  --glass-bg: rgba(251, 253, 246, 0.78);
-  --glass-bg-strong: rgba(251, 253, 246, 0.92);
+  --glass-bg: rgba(255, 255, 255, 0.86);
+  --glass-bg-strong: rgba(255, 255, 255, 0.96);
   --glass-border: 1px solid var(--color-border);
   --glass-blur: blur(10px);
   --glass-blur-strong: blur(16px);
 
-  /* ---------- Motion ---------- */
-  --ease-out: cubic-bezier(0.32, 0.72, 0, 1); /* mirrors Adaline easing */
+  --ease-out: cubic-bezier(0.22, 0.72, 0.18, 1);
   --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
-  --transition-fast: 150ms var(--ease-out);
-  --transition-normal: 240ms var(--ease-out);
-  --transition-slow: 400ms var(--ease-out);
+  --transition-fast: 140ms var(--ease-out);
+  --transition-normal: 220ms var(--ease-out);
+  --transition-slow: 320ms var(--ease-out);
 
-  /* ---------- Z-index ---------- */
   --z-base: 0;
   --z-elevated: 10;
   --z-overlay: 20;
@@ -108,30 +84,18 @@
   --z-toast: 100;
 }
 
-/* ---------- Base body ---------- */
 body {
-  background-color: var(--color-bg-primary);
-  color: var(--color-text-primary);
-  font-family: var(--font-sans);
   margin: 0;
   padding: 0;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
-/* ---------- Scrollbar (calm) ---------- */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--color-border-strong);
-  border-radius: var(--radius-full);
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-muted);
-}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border-strong); border: 2px solid var(--color-bg-primary); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }

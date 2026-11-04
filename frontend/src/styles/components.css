@@ -1,7 +1,4 @@
-/* ==========================================================================
-   Reusable Component Styles — Adaline Calm Green
-   Pill-radius buttons, hairline borders, restrained motion, layered hover.
-   ========================================================================== */
+/* Base component styles. Cross-page SafeHer refinements load from redesign.css. */
 
 :root {
   /* Layered card hover lift */

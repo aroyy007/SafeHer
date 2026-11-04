@@ -1,0 +1,11 @@
+{
+  "rules": {
+    "locations": {
+      ".indexOn": ["expiresAt"],
+      "$sessionId": {
+        ".read": "auth == null && ((data.child('expiresAt').isNumber() && data.child('expiresAt').val() > now) || (!data.child('expiresAt').exists() && ((data.child('timestamp').isNumber() && data.child('timestamp').val() + 86400000 > now) || (!data.child('timestamp').isNumber() && data.child('profile/updatedAt').isNumber() && data.child('profile/updatedAt').val() + 86400000 > now))))",
+        ".write": "auth == null && (!newData.exists() || (!data.exists() && newData.child('createdAt').isNumber() && newData.child('expiresAt').isNumber() && newData.child('expiresAt').val() > now && newData.child('expiresAt').val() <= now + 86400000) || (data.exists() && data.child('expiresAt').isNumber() && data.child('expiresAt').val() > now && newData.child('expiresAt').val() == data.child('expiresAt').val()))"
+      }
+    }
+  }
+}

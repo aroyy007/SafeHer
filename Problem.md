@@ -1,5 +1,7 @@
 Let me first check what's been built so far, then give your team the clearest possible picture.Now the flow diagrams — one for the normal user journey, one for the SOS emergency path.Now who builds what — the team responsibility breakdown.Here's the plain-language summary you can read aloud to your team in 5 minutes.
 
+> **Verified data correction:** The checked-in CrimeDataBD CSV has 6,574 rows and fields including `incident_month`, `incident_week`, `incident_weekday`, `latitude`, `longitude`, `incident_place`, `incident_district`, `incident_division`, and `crime`. It has no victim-gender or year/date field. Any old female-victim filters or year-based examples below are invalid. See [`datasets.md`](datasets.md) for provenance, license, and limits.
+
 ---
 
 ## SafeHer in plain language — for your team meeting
@@ -10,7 +12,7 @@ Let me first check what's been built so far, then give your team the clearest po
 
 **The 3 things that will win us the hackathon:**
 
-First, saying "বাঁচাও" (say it out loud during the demo — the judges at CUET will recognize it immediately) activates emergency mode. No existing safety app on earth does this in Bengali. Second, showing two routes on the map — one fast, one safe — built on 6,574 real Bangladesh crime records. This is the visual that makes the AI story concrete. Third, disguise mode: the app looks like a calculator to anyone watching, but the SOS is still armed underneath. Women in Bangladesh specifically ask for this feature. No competitor has it.
+First, saying "বাঁচাও" activates emergency mode. Second, showing a fast route and a route ranked by the app's heuristic safety score. Its incident-density component uses approximate news-derived CrimeDataBD points within the Chattogram graph area; it is not a female-victim risk prediction. Third, disguise mode: the app looks like a calculator while SOS remains available underneath.
 
 **What each teammate needs to understand:**
 
@@ -54,46 +56,29 @@ These numbers are your opening slide. No judge at CUET will question the relevan
 
 ## Datasets: What to Use, Where to Get It, How to Structure It
 
-### Dataset 1 — CrimeDataBD (Your Primary ML Training Dataset)
+### Dataset 1 — CrimeDataBD (Current heuristic input; limitations apply)
 
 This is the most important dataset for your project and it's Bangladesh-specific.
 
-CrimeDataBD contains 6,574 crime instances in CSV format covering Murder, Rape, Assault, Robbery, Kidnap, and Body Found cases across Bangladesh. It includes temporal, geographic, weather, and demographic features — 36 engineered features total. Crime data was collected from newspaper archives, geo-location from standard service providers, weather from a Weather API, and demographics from the Bangladesh National Census.
+The checked-in CrimeDataBD v4 CSV contains 6,574 Bangladesh records. Its locations are approximate and news-derived. The project has not independently verified each record or coordinate.
 
 **Where to get it:** `https://data.mendeley.com/datasets/d7vzpcdzcw/4` — free, no login required, direct CSV download.
 
-**Dataset structure (the 36 features):**
+**Observed fields include:**
 
 ```
-crime_type        | categorical  | murder/rape/assault/robbery/kidnap
-date              | datetime     | YYYY-MM-DD
-time_of_day       | categorical  | morning/afternoon/evening/night
-day_of_week       | int          | 0-6
-month             | int          | 1-12
-division          | categorical  | Dhaka/Chattogram/Sylhet/etc.
-district          | categorical  | 64 districts of Bangladesh
-upazila           | categorical  | sub-district
-latitude          | float        | geo-coordinate
-longitude         | float        | geo-coordinate
-victim_gender     | categorical  | male/female/unknown
-victim_age_group  | categorical  | child/adolescent/adult/elderly
-perpetrator_count | int          | number of perpetrators
-weapon_used       | categorical  | none/knife/firearm/other
-location_type     | categorical  | road/home/school/transport/market
-weather           | categorical  | sunny/cloudy/rainy/night
-temperature       | float        | celsius
-humidity          | float        | percentage
-population_density| float        | per km²
-literacy_rate     | float        | district-level
-poverty_rate      | float        | district-level
-unemployment_rate | float        | district-level
+incident_month, incident_week, incident_weekday | temporal categories
+part_of_the_day, crime                         | categories
+latitude, longitude                            | approximate coordinates
+incident_place, incident_district, incident_division | location context
+weather and census context                     | mixed contextual fields
 ```
 
 **How you use this for SafeHer:**
 
-Filter `victim_gender == female` and `crime_type IN [rape, assault, kidnap]`. Group by `(latitude, longitude, time_of_day)` to build your incident density surface. This directly feeds your route safety score — you can say to judges: "Our incident density layer is trained on 6,574 real Bangladesh crime records from the official dataset."
+The current graph precompute uses available coordinates within 5 km of the Chattogram graph center to calculate a KDE density heuristic. This CSV does not support a victim-gender filter or year-based trend. Do not describe these route scores as trained predictions or official safety ratings.
 
-Also exists: a separate GitHub repo `mjtbasif/Bangladesh-Crime-Data` containing Bangladesh Police crime records from 2010 to 2019 in CSV files per year — useful as a secondary historical validation set.
+The supplied research note also names `mjtbasif/Bangladesh-Crime-Data` as a possible source. Its official provenance, license, schema, and geographic/time resolution have not been verified in this project; it is not downloaded, used, or suitable to cite as police data until reviewed.
 
 ---
 
@@ -128,14 +113,15 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
 
-# Load crime data, filter for female victims
+# Load crime data and discard rows without coordinates. The deployed
+# precompute additionally scopes these points to the graph's 5 km area.
 crimes = pd.read_csv("crimedatabd.csv")
-female_crimes = crimes[crimes["victim_gender"] == "female"]
+local_crimes = crimes.dropna(subset=["latitude", "longitude"])
 
 # Convert to GeoDataFrame
 gdf = gpd.GeoDataFrame(
-    female_crimes,
-    geometry=gpd.points_from_xy(female_crimes.longitude, female_crimes.latitude),
+    local_crimes,
+    geometry=gpd.points_from_xy(local_crimes.longitude, local_crimes.latitude),
     crs="EPSG:4326"
 )
 
@@ -181,7 +167,7 @@ These are open-source repos you can study for model architecture ideas (not to c
 
 **`Srinithyee/ML-WOMEN-SAFETY`** — an ML model that predicts if a place is safe for women, with a locally collected dataset from Chennai. Study their feature engineering approach. Their location safety prediction pipeline is directly analogous to what you're building.
 
-**`mjtbasif/Bangladesh-Crime-Data`** — historical Bangladesh Police data, useful for temporal trend analysis (crime rates by month, time-of-day patterns for Chittagong specifically).
+**`mjtbasif/Bangladesh-Crime-Data`** — unverified candidate named in supplied research notes. Do not use for trends or describe as official police data until its source, license, schema, and geographic/time resolution are confirmed.
 
 **GitHub topic `women-safety`** — includes repos like an EDA on women safety crime datasets to identify trends, correlations, and key insights, plus ML models for location safety prediction.
 
@@ -199,9 +185,7 @@ This is the AI layer that powers your safety map colors (red/amber/green zones).
 from sklearn.neighbors import KernelDensity
 import numpy as np
 
-# Filter female-targeted crimes
-female_incidents = crimedatabd[crimedatabd["victim_gender"] == "female"]
-coords = female_incidents[["latitude", "longitude"]].values
+coords = crimedatabd[["latitude", "longitude"]].dropna().values
 
 # Fit KDE
 kde = KernelDensity(bandwidth=0.005, metric="haversine")
@@ -216,7 +200,7 @@ def get_danger_score(lat, lng):
     return min(density / MAX_DENSITY, 1.0)
 ```
 
-KDE is interpretable to judges ("we estimate crime density using a probability surface fitted to 6,574 real incidents"), runs in microseconds at inference time, and produces smooth heatmaps that look professional on Mapbox.
+KDE is interpretable as a density heuristic over available approximate records; it is not a calibrated probability of personal risk.
 
 **Option B: Random Forest Classifier (more "AI", slightly harder)**
 
@@ -262,10 +246,10 @@ def build_safety_graph():
     
     # Load and filter CrimeDataBD
     crimes = pd.read_csv("crimedatabd.csv")
-    female = crimes[crimes["victim_gender"] == "female"][["latitude","longitude"]]
+    local = crimes[["latitude", "longitude"]].dropna()
     kde = KernelDensity(bandwidth=0.005, metric="haversine")
-    kde.fit(np.radians(female.values))
-    MAX_DENSITY = np.exp(kde.score_samples(np.radians(female.values)).max())
+    kde.fit(np.radians(local.values))
+    MAX_DENSITY = np.exp(kde.score_samples(np.radians(local.values)).max())
     
     road_safety = {
         "footway": 0.95, "pedestrian": 0.90, "path": 0.80,
@@ -393,8 +377,8 @@ For your demo, seed this with 50 incidents across Chittagong using real high-ris
 
 | Tool | What it gives you | Access | Cost |
 |------|------------------|--------|------|
-| **CrimeDataBD** (Mendeley) | 6,574 BD crime records, 36 features, CSV | `data.mendeley.com/datasets/d7vzpcdzcw/4` | Free |
-| **mjtbasif/Bangladesh-Crime-Data** | Bangladesh Police data 2010-2019, CSV per year | GitHub | Free |
+| **CrimeDataBD** (Mendeley) | 6,574 approximate news-derived records, CSV; no victim-gender/year fields | `data.mendeley.com/datasets/d7vzpcdzcw/4` | CC BY-NC 4.0 |
+| **mjtbasif/Bangladesh-Crime-Data** | Unverified candidate; not integrated | GitHub | Verify provenance/license before use |
 | **OpenStreetMap / osmnx** | Chittagong/Dhaka walk graph, lighting, road type | `pip install osmnx` | Free |
 | **Overpass API** | Query any OSM tags live | `overpass-api.de` | Free |
 | **SafetiPin audit framework** | 9-parameter safety scoring rubric (academic paper) | ResearchGate PDF | Free |
@@ -418,19 +402,17 @@ The SciBlitz rulebook requires attribution of all datasets. Your Model & Data Ca
 ```markdown
 ## Datasets Used
 
-1. **CrimeDataBD** — Shohan, F.T., Akash, A.U., Ibrahim, M., Alam, M.S. (2025). 
+1. **CrimeDataBD** — Faisal Tareque Shohan, Abu Ubaida Akash, Muhammad Ibrahim, Mohammad Shafiul Alam (2025). DOI: 10.17632/d7vzpcdzcw.4.
    Mendeley Data. https://data.mendeley.com/datasets/d7vzpcdzcw/4
-   License: CC BY 4.0
-   Usage: Training incident density KDE model; safety scoring for road segments
+   License: CC BY-NC 4.0
+   Usage: Chattogram-local density heuristic; approximate news-derived points, not female-only risk predictions
 
 2. **OpenStreetMap Contributors** — Road network and street attribute data for 
    Chittagong, Bangladesh. © OpenStreetMap contributors, ODbL license.
    Access: via osmnx library (https://github.com/gboeing/osmnx)
    Usage: Walk network graph, lighting tags, road type classification
 
-3. **Bangladesh Police Crime Statistics** — mjtbasif/Bangladesh-Crime-Data (GitHub)
-   Historical crime records 2010-2019.
-   Usage: Temporal trend validation (crime by time-of-day, day-of-week)
+3. **Not used:** `mjtbasif/Bangladesh-Crime-Data` is an unverified candidate. Do not include it in the data card unless its provenance, license, and schema are verified first.
 
 ## Safety Scoring Framework
 

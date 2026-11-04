@@ -45,28 +45,28 @@ h2.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,
     </div>
     <div class="ds-meta">
       <span class="meta-pill">6,574 crime records</span>
-      <span class="meta-pill">36 features per record</span>
+      <span class="meta-pill">Approximate news-derived locations</span>
       <span class="meta-pill">CSV format</span>
-      <span class="meta-pill">CC BY 4.0</span>
+      <span class="meta-pill">CC BY-NC 4.0</span>
       <span class="meta-pill">Free download</span>
     </div>
-    <p class="ds-desc">Bangladesh crime records covering Murder, Rape, Assault, Robbery, Kidnap. Includes lat/lng coordinates, victim gender, time of day, weather, population density, literacy rate, poverty rate. Built from newspaper archives + National Census + Weather API. The only ML-ready Bangladesh crime dataset with geographic coordinates.</p>
-    <div class="ds-use"><strong>How you use it</strong>Filter rows where <code>victim_gender == "female"</code>. Extract lat/lng. Fit a KDE model on those coordinates. Use the KDE density surface to score every OSM road segment — higher crime density nearby = lower safety score on that edge.</div>
+    <p class="ds-desc">The checked-in v4 CSV has 6,574 Bangladesh records with approximate, news-derived locations and contextual fields. It does not include victim gender or a year/date field. These points are not independently verified crime locations.</p>
+    <div class="ds-use"><strong>How SafeHer uses it</strong>The graph precompute scopes valid coordinates to a 5 km radius around Chattogram and uses their density as one route-scoring heuristic. This is not a female-victim risk prediction or an official safety rating. The dataset's CC BY-NC 4.0 license requires attribution and restricts commercial use.</div>
     <a class="ds-link" href="https://data.mendeley.com/datasets/d7vzpcdzcw/4" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>data.mendeley.com/datasets/d7vzpcdzcw/4</a>
   </div>
 
   <div class="ds-card">
     <div class="ds-head">
-      <p class="ds-name">Bangladesh Police Crime Data 2010–2019</p>
-      <span class="ds-tag tag-secondary">Secondary · validation</span>
+      <p class="ds-name">Bangladesh Crime Data candidate — unverified</p>
+      <span class="ds-tag tag-secondary">Unverified · not used</span>
     </div>
     <div class="ds-meta">
-      <span class="meta-pill">10 years of records</span>
-      <span class="meta-pill">CSV per year</span>
-      <span class="meta-pill">GitHub · free</span>
+      <span class="meta-pill">Candidate source</span>
+      <span class="meta-pill">License unchecked</span>
+      <span class="meta-pill">Not integrated</span>
     </div>
-    <p class="ds-desc">Official Bangladesh Police crime statistics from 2010 to 2019. One CSV file per year. Covers dacoity, robbery, murder, women and child repression, kidnapping, burglary, and theft across different police units and regions.</p>
-    <div class="ds-use"><strong>How you use it</strong>Temporal validation — check whether crime patterns by time-of-day and day-of-week in CrimeDataBD match the longer historical trend. Also useful for your Model and Data Card to show multi-source validation.</div>
+    <p class="ds-desc">This GitHub repository was suggested as a candidate in research notes. SafeHer has not verified that it is official police data or reviewed its license, schema, or geographic/time resolution. No files from it are included in this project.</p>
+    <div class="ds-use"><strong>Use status</strong>Do not merge, use for temporal validation, or cite as official police statistics until provenance, license, and schema have been checked.</div>
     <a class="ds-link" href="https://github.com/mjtbasif/Bangladesh-Crime-Data" target="_blank"><i class="ti ti-external-link" aria-hidden="true"></i>github.com/mjtbasif/Bangladesh-Crime-Data</a>
   </div>
 </div>

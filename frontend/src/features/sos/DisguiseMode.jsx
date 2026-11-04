@@ -35,7 +35,7 @@ export function DisguiseMode({ onExit }) {
   const startEqualHold = () => {
     holdTimerRef.current = setTimeout(() => {
       console.log("🚨 DISGUISE SOS ACTIVATED SILENTLY 🚨");
-      activateSOS();
+      activateSOS('disguise_mode');
       // Vibrate shortly as a silent confirmation
       if (navigator.vibrate) navigator.vibrate([100]); 
     }, 3000);

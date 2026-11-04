@@ -10,6 +10,8 @@ what env vars to set, and what to verify on stage day.**
 > alerts and SOS dispatch still work unchanged. The remaining sections
 > below are kept for the historical record.
 
+> **Schema note:** SQL examples in this historical document include the old `sos_events` table and do not match the current backend. Use [`supabase_schema.sql`](supabase_schema.sql) as the only supported Supabase schema; do not apply the archived snippets.
+
 ---
 
 ## 1. (Removed) Phone OTP signup

@@ -3,8 +3,14 @@ import { useParams, Link } from 'react-router-dom';
 import { ShieldAlert, Share2, MapPin, WifiOff, AlertCircle, Check, ArrowRight } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { isFirebaseReady, subscribeToLocation } from '../../features/tracking/firebaseClient';
+import {
+  isFirebaseReady,
+  subscribeToLocation,
+  TRACKING_TTL_MS,
+} from '../../features/tracking/firebaseClient';
 import './track.css';
+import { useLanguage } from '../../i18n/LanguageContext';
+import { LanguageSwitcher } from '../../i18n/LanguageSwitcher';
 
 /**
  * Track page — public, read-only.
@@ -13,36 +19,99 @@ import './track.css';
  * Renders one of three states:
  *   1. Empty / missing — sessionId not found in Firebase
  *   2. Live map — shows the user's last position + status banner + emergency CTAs
+ *   3. Expired — 24-hour retention window has ended
  */
 export function Track() {
+  const { t } = useLanguage();
   const { sessionId } = useParams();
   const [location, setLocation] = useState(null);
   const [lastSeen, setLastSeen] = useState(null);
   const [missing, setMissing] = useState(false);
+  const [expired, setExpired] = useState(false);
   const [toast, setToast] = useState(null);
   const [copied, setCopied] = useState(false);
   const [profile, setProfile] = useState(null);
   const toastTimer = useRef(null);
 
   useEffect(() => {
+    let active = true;
+    let unsubscribe = () => {};
+    let expiryTimer = null;
+
+    setLocation(null);
+    setLastSeen(null);
+    setProfile(null);
+    setMissing(false);
+    setExpired(false);
+
+    const expireSession = () => {
+      if (!active) return;
+      active = false;
+      setExpired(true);
+      setLocation(null);
+      setLastSeen(null);
+      setProfile(null);
+      setMissing(false);
+      unsubscribe();
+    };
+
     if (!isFirebaseReady) {
       const t = setTimeout(() => setMissing(true), 600);
-      return () => clearTimeout(t);
+      return () => {
+        active = false;
+        clearTimeout(t);
+      };
     }
-    const unsubscribe = subscribeToLocation(sessionId, (data) => {
-      if (data && typeof data.lat === 'number' && typeof data.lng === 'number') {
+
+    unsubscribe = subscribeToLocation(sessionId, (data) => {
+      if (!active) return;
+      clearTimeout(expiryTimer);
+
+      if (!data) {
+        setLocation(null);
+        setLastSeen(null);
+        setProfile(null);
+        setExpired(false);
+        setMissing(true);
+        return;
+      }
+
+      const expiresAt = getSessionExpiresAt(data);
+      if (expiresAt && expiresAt <= Date.now()) {
+        expireSession();
+        return;
+      }
+      if (expiresAt) {
+        expiryTimer = setTimeout(expireSession, expiresAt - Date.now());
+      }
+
+      setExpired(false);
+      setProfile(data.profile || null);
+      if (typeof data.lat === 'number' && typeof data.lng === 'number') {
         setLocation({ lat: data.lat, lng: data.lng });
         setLastSeen(data.timestamp || Date.now());
         setMissing(false);
       } else {
+        setLocation(null);
+        setLastSeen(null);
         setMissing(true);
       }
-      // Profile lives in the same node (locations/<id>/profile)
-      if (data && data.profile) {
-        setProfile(data.profile);
-      }
+    }, () => {
+      if (!active) return;
+      active = false;
+      setLocation(null);
+      setLastSeen(null);
+      setProfile(null);
+      setExpired(false);
+      setMissing(true);
+      unsubscribe();
     });
-    return unsubscribe;
+
+    return () => {
+      active = false;
+      clearTimeout(expiryTimer);
+      unsubscribe();
+    };
   }, [sessionId]);
 
   useEffect(() => {
@@ -60,7 +129,7 @@ export function Track() {
     const url = window.location.href;
     try {
       if (navigator.share) {
-        await navigator.share({ title: 'SafeHer live location', url });
+        await navigator.share({ title: t('SafeHer live location'), url });
         return;
       }
       await navigator.clipboard.writeText(url);
@@ -70,31 +139,32 @@ export function Track() {
     } catch {
       // user cancelled or clipboard blocked — silent
     }
-  }, []);
+  }, [t]);
 
   return (
     <div className="track">
       {/* Top bar */}
       <div className="track__top">
-        <Link to="/" className="track__brand" aria-label="SafeHer home">
+        <Link to="/" className="track__brand" aria-label={t('SafeHer home')}>
           <span className="track__brand-mark" aria-hidden="true">
             <ShieldAlert size={12} strokeWidth={2.25} />
           </span>
           SafeHer
         </Link>
+        <LanguageSwitcher />
         <button
           type="button"
           className="track__share"
           onClick={handleShare}
-          aria-label="Copy tracking link"
+          aria-label={t('Copy tracking link')}
         >
           {copied ? <Check size={12} /> : <Share2 size={12} />}
-          {copied ? 'Copied' : 'Share'}
+          {t(copied ? 'Copied' : 'Share')}
         </button>
       </div>
 
-      {missing && !location ? (
-        <EmptyState />
+      {expired || (missing && !location) ? (
+        <EmptyState expired={expired} />
       ) : (
         <>
           <ProfileHeader profile={profile} />
@@ -108,8 +178,8 @@ export function Track() {
             location={location}
             isOnline={!!isOnline}
           />
-          <div className="track__privacy">
-            <ShieldAlert size={10} /> Shared via SafeHer · unguessable link
+          <div className="track__privacy" role="note">
+            <ShieldAlert size={12} /> {t('Anyone holding this link can view the location while active. Expires after 24 hours.')}
           </div>
           <EmergencyActions />
         </>
@@ -117,7 +187,7 @@ export function Track() {
 
       {toast ? (
         <div className="track__toast" role="status">
-          <Check size={12} /> {toast}
+          <Check size={12} /> {t(toast)}
         </div>
       ) : null}
     </div>
@@ -127,11 +197,12 @@ export function Track() {
 /* ---- Sub-components ---- */
 
 function ProfileHeader({ profile }) {
+  const { t } = useLanguage();
   // Renders a prominent photo + name at the top of the tracking page
   // so the trusted contact can confirm at a glance that the alert is
   // for the right person. If no profile is pushed yet (Firebase cold
   // start), we still show a SafeHer-branded placeholder.
-  const name = profile?.name || 'SafeHer user';
+  const name = profile?.name || t('SafeHer user');
   const photoUrl = profile?.photoUrl || '';
   const phone = profile?.phone || '';
   const initials = name
@@ -142,7 +213,7 @@ function ProfileHeader({ profile }) {
     .join('');
 
   return (
-    <div className="track__profile" role="region" aria-label="Person sharing location">
+    <div className="track__profile" role="region" aria-label={t('Person sharing location')}>
       <div className="track__profile-avatar">
         {photoUrl ? (
           <img src={photoUrl} alt={name} />
@@ -154,7 +225,7 @@ function ProfileHeader({ profile }) {
         <span className="track__profile-pulse" aria-hidden="true" />
       </div>
       <div className="track__profile-meta">
-        <div className="track__profile-eyebrow">Live location shared by</div>
+      <div className="track__profile-eyebrow">{t('Location shared by')}</div>
         <div className="track__profile-name">{name}</div>
         {phone && <div className="track__profile-phone">{phone}</div>}
       </div>
@@ -162,34 +233,37 @@ function ProfileHeader({ profile }) {
   );
 }
 
-function EmptyState() {
+function EmptyState({ expired }) {
+  const { t } = useLanguage();
   return (
     <div className="track__state" role="status">
       <div className="track__state-icon"><WifiOff size={24} /></div>
-      <h1 className="track__state-title">Tracking link inactive</h1>
+      <h1 className="track__state-title">{t(expired ? 'Tracking link expired' : 'Tracking link inactive')}</h1>
       <p className="track__state-text">
-        The person you&rsquo;re trying to reach hasn&rsquo;t shared their location yet,
-        or the link has expired.
+        {expired
+          ? t('This tracking session expired after 24 hours. Its shared location and profile are no longer available.')
+          : t('The person you’re trying to reach has not shared their location yet, or the link is no longer active.')}
       </p>
       <Link to="/" className="track__state-link">
-        <ArrowRight size={14} /> Back to SafeHer
+        <ArrowRight size={14} /> {t('Back to SafeHer')}
       </Link>
     </div>
   );
 }
 
 function StatusBanner({ isOnline, isStale, isOffline }) {
+  const { t } = useLanguage();
   let label, dotClass, dotAnimClass;
   if (isOnline) {
-    label = 'Sharing live location';
+    label = t('Sharing live location');
     dotClass = 'track__status-dot--live';
     dotAnimClass = 'track__status-dot--live-anim';
   } else if (isStale) {
-    label = 'Connection lost';
+    label = t('Connection lost');
     dotClass = 'track__status-dot--stale';
     dotAnimClass = '';
   } else {
-    label = 'Offline';
+    label = t('Offline');
     dotClass = 'track__status-dot--offline';
     dotAnimClass = '';
   }
@@ -209,6 +283,7 @@ function StatusBanner({ isOnline, isStale, isOffline }) {
 }
 
 function TrackingMap({ location, isOnline }) {
+  const { t } = useLanguage();
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
@@ -262,21 +337,22 @@ function TrackingMap({ location, isOnline }) {
       ref={containerRef}
       className="track__map"
       role="region"
-      aria-label="Live location map"
+      aria-label={t('Map showing the most recently shared location')}
     />
   );
 }
 
 function EmergencyActions() {
+  const { t } = useLanguage();
   return (
-    <div className="track__actions" role="group" aria-label="Emergency actions">
+    <div className="track__actions" role="group" aria-label={t('Emergency actions')}>
       <a href="tel:999" className="track__action track__action--primary">
         <span className="track__action-num">999</span>
-        <span>National Emergency</span>
+        <span>{t('National Emergency')}</span>
       </a>
       <a href="tel:10921" className="track__action track__action--secondary">
         <span className="track__action-num">10921</span>
-        <span>Women &amp; Child Helpline</span>
+        <span>{t('Women & Child Helpline')}</span>
       </a>
     </div>
   );
@@ -295,4 +371,16 @@ function formatRelative(ts) {
   if (h < 24) return `${h}h ago`;
   const d = Math.floor(h / 24);
   return `${d}d ago`;
+}
+
+function getSessionExpiresAt(data) {
+  const explicitExpiry = Number(data?.expiresAt);
+  if (Number.isFinite(explicitExpiry) && explicitExpiry > 0) return explicitExpiry;
+
+  // Older sessions have no expiry field. Match the server cleanup fallback:
+  // use the last location timestamp, or profile update time if no location exists.
+  const lastActivity = Number(data?.timestamp) || Number(data?.profile?.updatedAt);
+  return Number.isFinite(lastActivity) && lastActivity > 0
+    ? lastActivity + TRACKING_TTL_MS
+    : null;
 }

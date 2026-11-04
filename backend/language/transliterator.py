@@ -1,16 +1,9 @@
 """
 SafeHer — Banglish-to-Bengali Transliterator
 ===============================================
-Converts romanized Bengali (Banglish) to Bengali script using
-phonetic rules based on the Avro keyboard standard.
-
-Reference: github.com/shuaib128/Banglish — Avro phonetic rules.
-
-Design decisions:
-  - Rule-based, NOT ML-based → faster, zero RAM cost, deterministic
-  - Longest-match-first ordering prevents partial replacements
-  - English proper nouns (capitalized) and numbers pass through
-  - URLs and email addresses pass through unchanged
+Converts romanized Bengali (Banglish) with the local ``avro.py`` phonetic
+parser. The wrapper protects common non-Banglish spans and keeps the
+existing preprocessing API unchanged.
 
 Known limitations:
   - Ambiguous spellings (e.g., "bari" could be বাড়ি or বাড়ী)
@@ -20,16 +13,27 @@ Known limitations:
 """
 
 import re
+import logging
+import unicodedata
+from threading import Lock
 from typing import List, Tuple
 
+from language.detector import BANGLISH_PATTERNS
 
-# =====================================================
-# PHONETIC MAPPING TABLE
-# =====================================================
-# CRITICAL: Ordered by LENGTH (longest first).
-# This prevents "sh" from matching before "shh",
-# or "k" from matching before "kh".
-# =====================================================
+logger = logging.getLogger("safeher.transliterator")
+
+try:
+    from avro import parse as avro_parse
+    from avro.main import _parse_backend as avro_parse_backend
+except ImportError:
+    # Keep chat available in environments that have not refreshed requirements.
+    avro_parse = None
+    avro_parse_backend = None
+    logger.warning("avro.py is unavailable; using the legacy transliteration fallback")
+
+
+# Legacy fallback used only if avro.py is unavailable. Keep the mapping
+# ordered longest-first so the fallback does not break existing installs.
 
 PHONETIC_MAP: List[Tuple[str, str]] = [
     # === 4-character sequences ===
@@ -119,97 +123,120 @@ NUMBER_PATTERN = re.compile(r'^[\d\u09E6-\u09EF]+$')
 # Pattern to detect email addresses
 EMAIL_PATTERN = re.compile(r'\S+@\S+\.\S+')
 
+TOKEN_PATTERN = re.compile(
+    r'(?i:https?://\S+|www\.\S+)|\S+@\S+\.\S+'
+    r'|\d+'
+    r'|[\u0980-\u09FF]+'
+    r"|[A-Za-z]+(?:['’-][A-Za-z]+)*"
+    r'|\s+|.',
+    re.DOTALL,
+)
+
+COMMON_ENGLISH = {
+    "help", "safe", "unsafe", "danger", "police", "hospital",
+    "phone", "call", "area", "road", "bus", "stop", "near",
+    "here", "there", "please", "thank", "sorry", "yes", "no",
+    "ok", "okay", "time", "place", "home", "school", "office",
+    "market", "station", "number", "mobile", "online", "app",
+}
+
+# avro.py caches parsed input in an internal 128-entry LRU. Keep parsing
+# serialized so its cache can be cleared before user text leaves this call.
+_AVRO_PARSE_LOCK = Lock()
+
+
+def _parse_with_avro(text: str) -> str:
+    """Parse a Romanized span without retaining it in avro.py's cache."""
+    if avro_parse is None or avro_parse_backend is None:
+        return _apply_phonetic_rules(text.lower())
+
+    with _AVRO_PARSE_LOCK:
+        try:
+            return avro_parse(text)
+        except Exception:
+            # Keep chat preprocessing available if the parser rejects a span.
+            # Do not include the span or exception text in logs.
+            logger.warning(
+                "avro.py parsing failed; using the legacy transliteration fallback"
+            )
+            return _apply_phonetic_rules(text.lower())
+        finally:
+            cache_clear = getattr(avro_parse_backend, "cache_clear", None)
+            if callable(cache_clear):
+                cache_clear()
+            else:
+                raise RuntimeError("avro.py parser cache interface changed")
+
+
+def _should_preserve_token(token: str, *, preserve_english: bool) -> bool:
+    """Keep non-Banglish spans intact before sending a token to Avro parsing."""
+    if URL_PATTERN.fullmatch(token) or EMAIL_PATTERN.fullmatch(token):
+        return True
+    if NUMBER_PATTERN.fullmatch(token) or re.search(r'[\u0980-\u09FF]', token):
+        return True
+    if token.isupper() and len(token) >= 2:
+        return True
+    if (
+        token[0].isupper()
+        and not token.isupper()
+        and (
+            token.lower() in COMMON_ENGLISH
+            or not BANGLISH_PATTERNS.fullmatch(token)
+        )
+    ):
+        return True
+    if preserve_english and token.lower() in COMMON_ENGLISH:
+        return True
+    return False
+
+
+def _transliterate_tokens(text: str, *, preserve_english: bool) -> str:
+    """Parse contiguous Roman spans while retaining protected tokens and spacing."""
+    result = []
+    pending = []
+
+    def flush_pending() -> None:
+        if pending:
+            result.append(_parse_with_avro("".join(pending)))
+            pending.clear()
+
+    for match in TOKEN_PATTERN.finditer(text):
+        token = match.group()
+        if re.fullmatch(r"[A-Za-z]+(?:['’-][A-Za-z]+)*", token):
+            if _should_preserve_token(token, preserve_english=preserve_english):
+                flush_pending()
+                result.append(token)
+            else:
+                pending.append(token)
+        elif token.isspace():
+            if pending:
+                pending.append(token)
+            else:
+                result.append(token)
+        elif len(token) == 1 and unicodedata.category(token).startswith("P"):
+            if pending:
+                pending.append(token)
+            else:
+                result.append(token)
+        else:
+            flush_pending()
+            result.append(token)
+
+    flush_pending()
+    return "".join(result)
+
 
 def transliterate_banglish(text: str) -> str:
     """
-    Convert Banglish (romanized Bengali) to Bengali script.
+    Convert Banglish text with the local Avro phonetic parser.
 
-    Args:
-        text: Banglish text string
-
-    Returns:
-        Bengali script string with English proper nouns preserved
-
-    Edge cases handled:
-        - "Help amake" → "Help অমঅকএ" (Help stays as English)
-        - "999 call koro" → "999 কঅল করও"
-        - "https://google.com bachao" → "https://google.com বঅচঅও"
-        - Empty string → empty string
+    URLs, emails, numeric strings, acronyms, and likely proper names stay
+    unchanged. The parser is deterministic; it does not resolve every
+    ambiguous Roman spelling.
     """
     if not text or not text.strip():
         return text
-
-    # Extract and protect URLs
-    urls = {}
-    url_placeholder_idx = 0
-    for match in URL_PATTERN.finditer(text):
-        placeholder = f"__URL{url_placeholder_idx}__"
-        urls[placeholder] = match.group()
-        text = text.replace(match.group(), placeholder, 1)
-        url_placeholder_idx += 1
-
-    # Extract and protect emails
-    emails = {}
-    email_placeholder_idx = 0
-    for match in EMAIL_PATTERN.finditer(text):
-        placeholder = f"__EMAIL{email_placeholder_idx}__"
-        emails[placeholder] = match.group()
-        text = text.replace(match.group(), placeholder, 1)
-        email_placeholder_idx += 1
-
-    words = text.split()
-    result = []
-
-    for word in words:
-        # Skip placeholders
-        if word.startswith("__URL") or word.startswith("__EMAIL"):
-            result.append(word)
-            continue
-
-        # Skip pure numbers
-        if NUMBER_PATTERN.match(word):
-            result.append(word)
-            continue
-
-        # Skip English proper nouns (Title Case or ALL CAPS with 3+ chars)
-        if len(word) >= 2 and (word[0].isupper() and not word.isupper()):
-            result.append(word)
-            continue
-
-        # Skip ALL CAPS words (acronyms like "SOS", "FIR", "NGO")
-        if word.isupper() and len(word) >= 2:
-            result.append(word)
-            continue
-
-        # Strip trailing punctuation, transliterate, re-attach
-        trailing_punct = ""
-        clean_word = word
-        while clean_word and clean_word[-1] in ".,!?;:।'\"()-":
-            trailing_punct = clean_word[-1] + trailing_punct
-            clean_word = clean_word[:-1]
-
-        leading_punct = ""
-        while clean_word and clean_word[0] in "'\"(-":
-            leading_punct += clean_word[0]
-            clean_word = clean_word[1:]
-
-        if not clean_word:
-            result.append(word)
-            continue
-
-        # Apply phonetic transliteration
-        converted = _apply_phonetic_rules(clean_word.lower())
-        result.append(leading_punct + converted + trailing_punct)
-
-    output = " ".join(result)
-
-    # Restore URLs and emails
-    for placeholder, url in urls.items():
-        output = output.replace(placeholder, url)
-    for placeholder, email in emails.items():
-        output = output.replace(placeholder, email)
-
-    return output
+    return _transliterate_tokens(text, preserve_english=False)
 
 
 def _apply_phonetic_rules(text: str) -> str:
@@ -250,42 +277,9 @@ def transliterate_mixed(text: str) -> str:
     Handle code-mixed text: transliterate only the Banglish portions,
     keep Bengali script and English unchanged.
 
-    Uses a simple heuristic: if a word contains Bengali Unicode, keep it.
-    If it looks like an English word (in common English list), keep it.
-    Otherwise, transliterate.
+    Preserve Bengali script and the existing common-English allowlist; parse
+    the remaining Roman tokens locally.
     """
-    import re
-    bengali_pattern = re.compile(r'[\u0980-\u09FF]')
-
-    # Common English words that might appear in code-mixed Bangladeshi text
-    common_english = {
-        "help", "safe", "unsafe", "danger", "police", "hospital",
-        "phone", "call", "area", "road", "bus", "stop", "near",
-        "here", "there", "please", "thank", "sorry", "yes", "no",
-        "ok", "okay", "time", "place", "home", "school", "office",
-        "market", "station", "number", "mobile", "online", "app",
-    }
-
-    words = text.split()
-    result = []
-
-    for word in words:
-        clean = word.strip(".,!?;:।'\"()-")
-
-        # Keep Bengali script words
-        if bengali_pattern.search(word):
-            result.append(word)
-        # Keep recognized English words
-        elif clean.lower() in common_english:
-            result.append(word)
-        # Keep proper nouns
-        elif word[0].isupper() if word else False:
-            result.append(word)
-        # Keep numbers
-        elif clean.isdigit():
-            result.append(word)
-        # Transliterate the rest
-        else:
-            result.append(transliterate_banglish(word))
-
-    return " ".join(result)
+    if not text or not text.strip():
+        return text
+    return _transliterate_tokens(text, preserve_english=True)

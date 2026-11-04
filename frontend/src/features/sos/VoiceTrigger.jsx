@@ -35,7 +35,7 @@ export function VoiceTrigger() {
         const isTriggered = triggerWords.some(word => transcript.includes(word));
         if (isTriggered) {
           console.log("🚨 VOICE TRIGGER ACTIVATED 🚨");
-          activateSOS();
+          activateSOS('voice_command');
           recognitionRef.current.stop();
         }
       };

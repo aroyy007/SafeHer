@@ -1,222 +1,186 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
 import emailjs from '@emailjs/browser';
 
 import { useAuth } from './AuthContext';
 import { api } from '../lib/api';
-import { updateSessionProfile } from '../features/tracking/firebaseClient';
+import {
+  TRACKING_TTL_MS,
+  updateSessionProfile,
+  clearSessionLocation,
+} from '../features/tracking/firebaseClient';
 
 const EmergencyContext = createContext();
-
-// EmailJS credentials (loaded from .env via Vite)
-const EMAILJS_SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
 const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-const EMAILJS_PUBLIC_KEY  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
+function newSessionId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  if (globalThis.crypto?.getRandomValues) {
+    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+    return `sos-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+  }
+  return `sos-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function currentLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => resolve({ lat: coords.latitude, lng: coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 },
+    );
+  });
+}
 
 export function EmergencyProvider({ children }) {
+  const activationRef = useRef(0);
+  const emergencyActiveRef = useRef(false);
   const [isEmergency, setIsEmergency] = useState(false);
   const [location, setLocation] = useState(null);
   const [address, setAddress] = useState(null);
-  const [contactsNotified, setContactsNotified] = useState(false);
+  const [notificationStatus, setNotificationStatus] = useState('idle');
   const [trackingUrl, setTrackingUrl] = useState(null);
+  const [emergencySessionId, setEmergencySessionId] = useState(null);
+  const [emergencySessionCreatedAt, setEmergencySessionCreatedAt] = useState(null);
+  const [emergencySessionExpiresAt, setEmergencySessionExpiresAt] = useState(null);
   const { contacts, user } = useAuth();
 
-  /**
-   * Reverse-geocode lat/lng to a human-readable address using Nominatim.
-   * Free, no key. We don't await this in the alert flow — the email
-   * sends immediately with whatever address (or raw coords) is ready.
-   */
-  const reverseGeocode = async (lat, lng) => {
+  const reverseGeocode = async (loc) => {
+    if (!loc) return null;
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`,
-        { headers: { 'User-Agent': 'SafeHer/1.0' } }
-      );
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${loc.lat}&lon=${loc.lng}&format=json&accept-language=en`);
       if (!res.ok) return null;
-      const data = await res.json();
-      return data.display_name || null;
+      return (await res.json()).display_name || null;
     } catch {
       return null;
     }
   };
 
-  const activateSOS = async () => {
-    if (isEmergency) return;
-    setIsEmergency(true);
-
-    // 1. Vibrate (if supported)
-    if (navigator.vibrate) {
-      navigator.vibrate([500, 200, 500, 200, 500]);
-    }
-
-    // 2. Get Location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const loc = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          setLocation(loc);
-
-          // Kick off reverse geocoding in parallel — UI updates when ready.
-          reverseGeocode(loc.lat, loc.lng).then(setAddress);
-
-          await sendAlertEmail(loc);
-        },
-        async (error) => {
-          console.error('Location error:', error);
-          await sendAlertEmail(null); // Send email anyway even without location
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    } else {
-      await sendAlertEmail(null);
-    }
-  };
-
-  const cancelSOS = () => {
-    setIsEmergency(false);
-    setContactsNotified(false);
-    setLocation(null);
-    setAddress(null);
-    setTrackingUrl(null);
-  };
-
-  /**
-   * Sends one SOS email per trusted contact that has an email address.
-   * Each contact gets a personalized email (to_name, to_email, tracking link
-   * tied to the SOS session). The EmailJS template uses {{variables}} like
-   * to_name, from_name, from_phone, time, location_address, tracking_link.
-   *
-   * The session ID is reused across all contacts in this SOS so the
-   * tracking page can show a single live feed.
-   */
-  const sendAlertEmail = async (loc) => {
-    // Build a stable session ID for this SOS — reused for tracking.
-    const sessionId = api.sessionId();
-
-    const trackingBase = `${window.location.origin}/track`;
-    const link = loc
-      ? `${trackingBase}?session=${encodeURIComponent(sessionId)}&lat=${loc.lat}&lng=${loc.lng}`
-      : `${trackingBase}?session=${encodeURIComponent(sessionId)}`;
-
-    setTrackingUrl(link);
-
-    const formattedTime = new Date().toLocaleString('en-BD', {
-      timeZone: 'Asia/Dhaka',
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    });
-
-    const locationAddress =
-      address ||
-      (loc ? `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}` : 'Location unavailable');
-
-    // Push profile (name + photo URL + phone) into the same Firebase
-    // node as the live location, so /track can show "It's really Nadia"
-    // alongside the map marker. This is best-effort — if Firebase
-    // isn't configured, the rest of the SOS flow still works.
+  const sendAlertEmail = useCallback(async (loc, sessionId, resolvedAddress, activationId, createdAt, expiresAt) => {
+    let recipients = (contacts || []).filter((contact) => contact.email?.trim());
     try {
-      updateSessionProfile(sessionId, {
-        name: user?.name,
-        photoUrl: user?.photo_url,
-        phone: user?.phone,
-      });
-    } catch (err) {
-      console.warn('Failed to push profile to Firebase:', err);
+      const saved = await Promise.race([
+        api.auth.getSOSContacts(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('contact lookup timeout')), 2000)),
+      ]);
+      if (Array.isArray(saved.recipients)) recipients = saved.recipients;
+    } catch {
+      // Keep the locally loaded emergency contacts as a recovery path.
     }
-
-    // Notify contacts that have email addresses (EmailJS needs an email target).
-    const emailContacts = (contacts || []).filter((c) => c.email && c.email.trim());
-
-    console.log('===============================');
-    console.log(`🚨 SOS ACTIVATED FOR ${user?.name} 🚨`);
-    console.log(`📍 Location: ${loc ? `${loc.lat}, ${loc.lng}` : 'Unavailable'}`);
-    console.log(`🔗 Tracking: ${link}`);
-    console.log(`👥 Notifying ${emailContacts.length} email contacts (of ${contacts?.length || 0} total)`);
-    console.log('===============================');
-
-    if (emailContacts.length === 0) {
-      // No email contacts — still mark as notified so UI updates, but skip the network call.
-      setTimeout(() => setContactsNotified(true), 800);
+    if (activationRef.current !== activationId) return;
+    const unique = new Map(recipients.filter((c) => c.email).map((c) => [c.email.trim().toLowerCase(), c]));
+    const emailContacts = [...unique.values()];
+    if (!emailContacts.length) {
+      setNotificationStatus('no_contacts');
       return;
     }
 
-    // Send in parallel; ignore per-contact failures so one bad address doesn't block the rest.
-    const sendJobs = emailContacts.map(async (contact) => {
-      const templateParams = {
-        to_name:          contact.name,
-        to_email:         contact.email,
-        from_name:        user?.name || 'A SafeHer user',
-        from_phone:       user?.phone || '—',
-        time:             formattedTime,
-        location_address: locationAddress,
-        tracking_link:    link,
-      };
-
-      // 1) Primary path: EmailJS (free tier; browser-direct; survives backend downtime)
-      let emailjsOk = false;
-      try {
-        await emailjs.send(
-          EMAILJS_SERVICE_ID,
-          EMAILJS_TEMPLATE_ID,
-          templateParams,
-          { publicKey: EMAILJS_PUBLIC_KEY }
-        );
-        emailjsOk = true;
-        console.log(`✓ SOS email sent via EmailJS to ${contact.name} <${contact.email}>`);
-      } catch (err) {
-        console.warn(`EmailJS failed for ${contact.name}; trying backend SMTP fallback:`, err);
-      }
-
-      // 2) Backup path: backend /sos/alert. Only used if EmailJS threw AND
-      //    the backend has SMTP configured. Frontend never blocks on this —
-      //    a backend 503 is fine, we just log it.
-      if (!emailjsOk) {
-        try {
-          const backendBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-          if (backendBase) {
-            const resp = await fetch(`${backendBase}/sos/alert`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                from_name:        user?.name || 'A SafeHer user',
-                from_phone:       user?.phone || '—',
-                location_address: locationAddress,
-                tracking_link:    link,
-                time_str:         formattedTime,
-                recipients: [{ name: contact.name, email: contact.email }],
-              }),
-            });
-            if (resp.ok) {
-              console.log(`✓ SOS email sent via backend SMTP to ${contact.name} <${contact.email}>`);
-            } else {
-              const txt = await resp.text().catch(() => '');
-              console.error(`✗ Backend SMTP also failed for ${contact.name}: ${resp.status} ${txt}`);
-            }
-          }
-        } catch (err) {
-          console.error(`✗ Backend SMTP fallback threw for ${contact.name}:`, err);
-        }
-      }
+    const link = `${window.location.origin}/track/${encodeURIComponent(sessionId)}`;
+    setTrackingUrl(link);
+    const formattedTime = new Date().toLocaleString('en-BD', {
+      timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short',
     });
+    const locationAddress = resolvedAddress || (loc ? `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}` : 'Location unavailable');
+    updateSessionProfile(sessionId, {
+      name: user?.name, photoUrl: user?.photo_url, phone: user?.phone,
+    }, { createdAt, expiresAt });
 
-    await Promise.allSettled(sendJobs);
-    setContactsNotified(true);
-  };
+    const emailjsOutcomes = await Promise.allSettled(emailContacts.map(async (contact) => {
+      if (activationRef.current !== activationId) return false;
+      const templateParams = {
+        to_name: contact.name || 'Trusted contact',
+        to_email: contact.email,
+        from_name: user?.name || 'A SafeHer user',
+        from_phone: user?.phone || '—',
+        time: formattedTime,
+        location_address: locationAddress,
+        tracking_link: link,
+      };
+      if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) return false;
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams, { publicKey: EMAILJS_PUBLIC_KEY });
+      return true;
+    }));
+
+    let sent = emailjsOutcomes.filter((outcome) => outcome.status === 'fulfilled' && outcome.value).length;
+    const failedRecipients = emailContacts.filter((_, index) => {
+      const outcome = emailjsOutcomes[index];
+      return outcome.status !== 'fulfilled' || !outcome.value;
+    });
+    if (failedRecipients.length && activationRef.current === activationId) {
+      try {
+        const smtpBatch = failedRecipients.slice(0, 30);
+        const result = await api.sosAlert({
+          from_name: user?.name || 'A SafeHer user',
+          from_phone: user?.phone || '—',
+          location_address: locationAddress,
+          tracking_link: link,
+          time_str: formattedTime,
+          recipients: smtpBatch.map((contact) => ({ name: contact.name || 'Trusted contact', email: contact.email })),
+        });
+        sent += Math.min(smtpBatch.length, Math.max(0, Number(result.sent) || 0));
+      } catch {
+        // EmailJS may still have delivered to some contacts; preserve that count.
+      }
+    }
+    if (activationRef.current !== activationId) return;
+    setNotificationStatus(sent === emailContacts.length ? 'sent' : sent > 0 ? 'partial' : 'failed');
+  }, [contacts, user]);
+
+  const activateSOS = useCallback(async (triggerMethod = 'button_hold') => {
+    if (emergencyActiveRef.current) return;
+    emergencyActiveRef.current = true;
+    setIsEmergency(true);
+    setNotificationStatus('sending');
+    if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500]);
+
+    const activationId = ++activationRef.current;
+    const sessionId = newSessionId();
+    const createdAt = Date.now();
+    const expiresAt = createdAt + TRACKING_TTL_MS;
+    setEmergencySessionId(sessionId);
+    setEmergencySessionCreatedAt(createdAt);
+    setEmergencySessionExpiresAt(expiresAt);
+    const loc = await currentLocation();
+    if (activationRef.current !== activationId) return;
+    setLocation(loc);
+
+    // Audit logging is best effort and must never delay the emergency alert.
+    api.logSOS({
+      session_id: sessionId,
+      lat: loc?.lat ?? null,
+      lng: loc?.lng ?? null,
+      timestamp: Date.now(),
+      trigger_method: triggerMethod,
+      lang_at_trigger: 'bn-BD',
+    }).catch(() => {});
+
+    reverseGeocode(loc).then((resolved) => {
+      if (activationRef.current === activationId) setAddress(resolved);
+    });
+    await sendAlertEmail(loc, sessionId, null, activationId, createdAt, expiresAt);
+  }, [sendAlertEmail]);
+
+  const cancelSOS = useCallback(() => {
+    activationRef.current += 1;
+    emergencyActiveRef.current = false;
+    if (emergencySessionId) clearSessionLocation(emergencySessionId);
+    setIsEmergency(false);
+    setLocation(null);
+    setAddress(null);
+    setTrackingUrl(null);
+    setEmergencySessionId(null);
+    setEmergencySessionCreatedAt(null);
+    setEmergencySessionExpiresAt(null);
+    setNotificationStatus('idle');
+  }, [emergencySessionId]);
 
   return (
-    <EmergencyContext.Provider
-      value={{
-        isEmergency,
-        activateSOS,
-        cancelSOS,
-        location,
-        address,
-        contactsNotified,
-        trackingUrl,
-      }}
-    >
+    <EmergencyContext.Provider value={{
+      isEmergency, activateSOS, cancelSOS, location, address, notificationStatus,
+      trackingUrl, emergencySessionId, emergencySessionCreatedAt, emergencySessionExpiresAt,
+    }}>
       {children}
     </EmergencyContext.Provider>
   );

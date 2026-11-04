@@ -8,6 +8,7 @@ Ensures the app runs out-of-the-box without configuring API keys.
 import aiosqlite
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Optional
 
@@ -15,11 +16,14 @@ from routing.safety_scorer import haversine_distance
 
 logger = logging.getLogger("safeher.local_db")
 
-DB_PATH = "data/safeher_local.db"
+DB_PATH = os.environ.get("SAFEHER_DB_PATH", "data/safeher_local.db")
 
 
 async def init_db():
     """Initialize the SQLite tables."""
+    db_directory = os.path.dirname(DB_PATH)
+    if db_directory:
+        os.makedirs(db_directory, exist_ok=True)
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (

@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, Bot, User } from 'lucide-react';
 import { api } from '../../lib/api';
+import { useLanguage } from '../../i18n/LanguageContext';
 import './chat.css';
 
 export function SafetyChat() {
+  const { t } = useLanguage();
   const [messages, setMessages] = useState([
     { role: 'system', content: 'Hi, I am SafeHer AI. Need help finding a safe place, or have a question about local safety guidelines?' }
   ]);
@@ -36,7 +38,7 @@ export function SafetyChat() {
       console.error(err);
       setMessages(prev => [...prev, {
         role: 'system',
-        content: '⚠ Failed to connect to SafeHer AI. In an emergency, please use the SOS button or dial 999.'
+        content: 'Failed to connect to SafeHer AI. In an emergency, use the SOS button or dial 999.'
       }]);
     } finally {
       setIsLoading(false);
@@ -48,25 +50,25 @@ export function SafetyChat() {
       {/* Header */}
       <div className="chat__head">
         <div>
-          <div className="eyebrow">Assistant</div>
+          <div className="eyebrow">{t('Assistant')}</div>
           <h2 className="chat__title">SafeHer AI</h2>
-          <p className="chat__meta">Powered by Groq + L3Cube · Bengali &amp; English</p>
+          <p className="chat__meta">{t('Powered by Groq + L3Cube · Bengali & English')}</p>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="chat__body">
+      <div className="chat__body" role="log" aria-live="polite" aria-label={t('Conversation')}>
         {messages.map((msg, i) => (
           <div key={i} className={`chat__msg chat__msg--${msg.role}`}>
             <div className="chat__avatar">
               {msg.role === 'user' ? <User size={14} /> : <Bot size={14} />}
             </div>
-            <div className="chat__bubble">{msg.content}</div>
+            <div className="chat__bubble">{msg.role === 'system' ? t(msg.content) : msg.content}</div>
           </div>
         ))}
         {isLoading && (
           <div className="chat__loading">
-            <Loader2 size={14} className="animate-spin" /> SafeHer is thinking…
+            <Loader2 size={14} className="animate-spin" /> {t('SafeHer is thinking…')}
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -77,7 +79,8 @@ export function SafetyChat() {
         <input
           type="text"
           className="input-field chat__input"
-          placeholder="Ask about safety, rights, or local help…"
+          aria-label={t('Message')}
+          placeholder={t('Ask about safety, rights, or local help…')}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={isLoading}
@@ -86,7 +89,7 @@ export function SafetyChat() {
           type="submit"
           className="btn btn-primary chat__send"
           disabled={!input.trim() || isLoading}
-          aria-label="Send message"
+          aria-label={t('Send message')}
         >
           <Send size={16} />
         </button>

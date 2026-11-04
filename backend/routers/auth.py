@@ -10,7 +10,8 @@ from pydantic import BaseModel, EmailStr
 
 from services.auth_service import (
     create_user, authenticate_user, generate_token, verify_token,
-    get_user_by_id, add_emergency_contact, get_emergency_contacts, delete_emergency_contact
+    get_user_by_id, add_emergency_contact, get_emergency_contacts, delete_emergency_contact,
+    get_sos_recipients,
 )
 from core.rate_limiter import auth_rate_limit
 
@@ -22,7 +23,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 class SignupRequest(BaseModel):
     name: str
     email: EmailStr
-    phone: str
+    phone: str = ""
     password: str
     home_area: str = ""
     photo_url: str = ""
@@ -64,15 +65,14 @@ async def get_current_user(authorization: str = Header(None)):
         user_id = None
 
     # 2) Legacy HMAC path
-    if not user_id:
-        user_id = verify_token(token)
-
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = await get_user_by_id(user_id)
+    user = await get_user_by_id(user_id) if user_id else None
+    # A valid Supabase JWT is only usable when its subject maps to the
+    # SQLite account that remains SafeHer's authentication source.
     if not user:
-        raise HTTPException(status_code=401, detail="User not found")
+        legacy_user_id = verify_token(token)
+        user = await get_user_by_id(legacy_user_id) if legacy_user_id else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
     return user
 
 
@@ -109,6 +109,11 @@ async def login(req: LoginRequest):
 async def get_me(user: dict = Depends(get_current_user)):
     contacts = await get_emergency_contacts(user["id"])
     return {"user": user, "contacts": contacts}
+
+@router.get("/sos-contacts")
+async def sos_contacts(user: dict = Depends(get_current_user)):
+    """Return deduplicated email recipients from contacts and trusted circles."""
+    return {"recipients": await get_sos_recipients(user["id"])}
 
 @router.post("/contacts")
 async def create_contact(req: ContactRequest, user: dict = Depends(get_current_user)):

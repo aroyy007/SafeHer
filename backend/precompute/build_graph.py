@@ -48,8 +48,9 @@ def load_crime_data(csv_path: str) -> pd.DataFrame:
 
     try:
         df = pd.read_csv(csv_path)
+        source_rows = len(df)
 
-        # Standardize column names based on known variations
+        # Standardize the source's latitude / longitude / crime fields.
         col_map = {}
         for col in df.columns:
             lower_col = col.lower()
@@ -59,17 +60,37 @@ def load_crime_data(csv_path: str) -> pd.DataFrame:
 
         df = df.rename(columns=col_map)
 
-        # Drop missing coordinates
+        # Coerce coordinates before filtering malformed records.
+        df["lat"] = pd.to_numeric(df["lat"], errors="coerce")
+        df["lng"] = pd.to_numeric(df["lng"], errors="coerce")
+        finite_coords = np.isfinite(df["lat"]) & np.isfinite(df["lng"])
+        df = df.loc[finite_coords]
         df = df.dropna(subset=["lat", "lng"])
 
-        # Filter to Chittagong bounds
+        # First restrict to Bangladesh, then to the graph's 5 km footprint.
+        # CrimeDataBD coordinates are approximate news-derived locations;
+        # this spatial filter avoids scoring the Chattogram graph with the
+        # rest of the country's records.
         settings = get_settings()
         df = df[
             (df["lat"] >= settings.BD_LAT_MIN) & (df["lat"] <= settings.BD_LAT_MAX) &
             (df["lng"] >= settings.BD_LNG_MIN) & (df["lng"] <= settings.BD_LNG_MAX)
         ]
 
-        logger.info(f"Loaded {len(df)} crime incidents.")
+        center_lat, center_lng = settings.CTG_CENTER_LAT, settings.CTG_CENTER_LNG
+        earth_radius_m = 6_371_000
+        lat1 = np.radians(df["lat"].to_numpy())
+        lat2 = np.radians(center_lat)
+        dlat = lat1 - lat2
+        dlng = np.radians(df["lng"].to_numpy() - center_lng)
+        haversine = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlng / 2) ** 2
+        distance_m = 2 * earth_radius_m * np.arcsin(np.sqrt(np.clip(haversine, 0, 1)))
+        df = df.loc[distance_m <= settings.GRAPH_RADIUS_M].copy()
+
+        logger.info(
+            "CrimeDataBD coordinate rows: source=%d usable_within_graph=%d rejected=%d",
+            source_rows, len(df), source_rows - len(df),
+        )
         return df
 
     except Exception as e:
@@ -121,11 +142,10 @@ def main():
 
     # 1. Download Graph
     logger.info("Downloading Chittagong walk graph from OSM...")
-    # Chittagong center: 22.3569, 91.7832
-    # Radius: 5000m (5km)
+    # Use the shared center/radius so route scoring and heatmap coverage agree.
     G = ox.graph_from_point(
-        (22.3569, 91.7832),
-        dist=5000,
+        (settings.CTG_CENTER_LAT, settings.CTG_CENTER_LNG),
+        dist=settings.GRAPH_RADIUS_M,
         network_type='walk',
         simplify=True
     )

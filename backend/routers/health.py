@@ -2,18 +2,14 @@
 SafeHer — Heatmap & Health APIs
 =================================
 Endpoints:
-  - GET /heatmap : Returns precomputed KDE density for Mapbox
+  - GET /heatmap : Returns approximate CrimeDataBD record counts by ~1 km cell
   - GET /health  : Used by UptimeRobot to keep Render server awake
 """
 
-import logging
 from fastapi import APIRouter
-import os
-import json
 
 from core.config import get_settings
-
-logger = logging.getLogger("safeher.router.health")
+from services.heatmap_service import get_heatmap_geojson
 
 settings = get_settings()
 health_router = APIRouter(tags=["health"])
@@ -68,22 +64,7 @@ def health_check():
 @heatmap_router.get("/")
 def get_heatmap_data():
     """
-    Returns KDE density data for Mapbox heatmap rendering.
-    In a real production app, this would query PostGIS and build
-    density on the fly, or serve a precomputed vector tile.
-    For the hackathon, we serve the hand-curated hotspots.
+    Return approximate CrimeDataBD record counts aggregated into ~1 km cells.
+    The CSV parser uses only Python's standard library and works in Lite Mode.
     """
-    hotspot_path = "data/chittagong_incidents.geojson"
-
-    if os.path.exists(hotspot_path):
-        try:
-            with open(hotspot_path, "r") as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Failed to load heatmap data: {e}")
-
-    # Fallback empty GeoJSON
-    return {
-        "type": "FeatureCollection",
-        "features": []
-    }
+    return get_heatmap_geojson()
