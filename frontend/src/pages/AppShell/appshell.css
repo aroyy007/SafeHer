@@ -1,6 +1,5 @@
 /* ==========================================================================
-   AppShell — in-app chrome (header, tabs, common panels)
-   Calm Green with active-dot indicator on bottom nav.
+   AppShell base — cross-page SafeHer layout refinements load from redesign.css.
    ========================================================================== */
 
 .appshell__header {

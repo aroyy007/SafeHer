@@ -12,10 +12,42 @@ import aiosqlite
 import uuid
 import time
 import os
+import logging
 from typing import Optional
+from pydantic import EmailStr, TypeAdapter
 
 from db.local_db import DB_PATH
 from services.disposable_domains import is_disposable
+
+_email_type = TypeAdapter(EmailStr)
+logger = logging.getLogger("safeher.auth_service")
+
+
+def _mirror_user_to_supabase(user: dict) -> None:
+    """Mirror the local SafeHer account row required by Supabase foreign keys."""
+    from core.config import get_settings
+
+    if not get_settings().USE_SUPABASE:
+        return
+    from db.supabase_client import get_supabase_admin
+
+    try:
+        get_supabase_admin().table("users").upsert(
+            {
+                "id": user["id"],
+                "name": user["name"],
+                "email": user["email"],
+                "phone": user.get("phone"),
+                "home_area": user.get("home_area", ""),
+                "photo_url": user.get("photo_url", ""),
+                "phone_verified": bool(user.get("phone_verified", False)),
+            },
+            on_conflict="id",
+        ).execute()
+    except Exception as exc:
+        # SQLite remains the authentication source. A remote storage outage
+        # must not turn a committed local account or valid login into failure.
+        logger.warning("Supabase user mirror unavailable (%s)", type(exc).__name__)
 
 # SECRET_KEY is loaded lazily so that tests / scripts can override it
 # via environment variables without importing this module first.
@@ -155,8 +187,6 @@ def _validate_signup_inputs(name: str, email: str, phone: str, password: str) ->
             "Disposable / temporary email addresses are not allowed. "
             "Please use a permanent email so we can contact you in an emergency."
         )
-    if not phone or not phone.strip():
-        raise ValueError("Phone number is required")
     if len(password or "") < MIN_PASSWORD_LEN:
         raise ValueError(f"Password must be at least {MIN_PASSWORD_LEN} characters")
     if password and password.strip() == password and password.isdigit():
@@ -209,7 +239,7 @@ async def create_user(
             await db.commit()
         except aiosqlite.IntegrityError:
             raise ValueError("Email already registered")
-    return {
+    user = {
         "id": user_id,
         "name": name.strip(),
         "email": email_norm,
@@ -218,6 +248,8 @@ async def create_user(
         "photo_url": (photo_url or "").strip(),
         "phone_verified": bool(phone_verified),
     }
+    _mirror_user_to_supabase(user)
+    return user
 
 async def authenticate_user(email: str, password: str) -> Optional[dict]:
     if not email or not password:
@@ -245,6 +277,7 @@ async def authenticate_user(email: str, password: str) -> Optional[dict]:
             # contract is consistent across `/auth/signup`, `/auth/login`
             # and `/auth/me`.
             user["phone_verified"] = bool(user.get("phone_verified"))
+            _mirror_user_to_supabase(user)
             return user
     return None
 
@@ -281,6 +314,35 @@ async def get_emergency_contacts(user_id: str) -> list:
         cur = await db.execute("SELECT * FROM emergency_contacts WHERE user_id = ?", (user_id,))
         rows = await cur.fetchall()
         return [dict(r) for r in rows]
+
+
+async def get_sos_recipients(user_id: str) -> list:
+    """Return validated, de-duplicated email recipients stored for this user."""
+    recipients = {}
+
+    def add_recipient(name: str, email: str, source_id: str = "") -> None:
+        candidate = (email or "").strip()
+        if not candidate:
+            return
+        try:
+            normalized = str(_email_type.validate_python(candidate)).casefold()
+        except Exception:
+            return
+        recipients.setdefault(normalized, {"id": source_id, "name": name or "", "email": normalized})
+
+    for contact in await get_emergency_contacts(user_id):
+        add_recipient(contact.get("name", ""), contact.get("email", ""), contact.get("id", ""))
+
+    from services.circles_service import get_circle, list_circles
+
+    for circle in await list_circles(user_id):
+        detail = await get_circle(circle["id"], user_id)
+        if not detail:
+            continue
+        for member in detail.get("members", []):
+            add_recipient(member.get("name", ""), member.get("contact", ""), member.get("id", ""))
+
+    return list(recipients.values())
 
 async def delete_emergency_contact(contact_id: str, user_id: str) -> bool:
     async with aiosqlite.connect(DB_PATH) as db:

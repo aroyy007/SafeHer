@@ -18,6 +18,18 @@ env/
 # SafeHer Specifics
 chroma_store/
 backend/data/*.graphml
+backend/data/*.db
+backend/cache/
+backend/chroma_store/
+backend/.env
+
+# Docker
+.docker-cache/
+
+# Firebase CLI
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
 
 # OS
 .DS_Store

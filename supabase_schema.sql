@@ -9,13 +9,11 @@
 -- times during development.
 --
 -- After this script succeeds:
---   1. Supabase Dashboard → Authentication → Providers
---      Enable Email (already on by default)
---   2. Project Settings → API → copy the publishable key + service
+--   1. Project Settings → API → copy the project URL + service
 --      role key + JWT secret into backend/.env
---   3. Set USE_SUPABASE=true in backend/.env (and on Render)
---   4. The backend's `db.supabase_client.get_supabase_admin()` will
---      start writing real rows instead of falling back to SQLite.
+--   2. Set USE_SUPABASE=true in backend/.env (and on Render)
+--   3. Configure the server-only SUPABASE_SERVICE_KEY. Admin operations
+--      require it; they never fall back to the publishable/anon key.
 -- ============================================================
 
 
@@ -29,8 +27,8 @@ create extension if not exists "pgcrypto";
 -- ============================================================
 -- 1. USERS
 -- ============================================================
--- Mirrors the local SQLite `users` table 1-to-1. Backend stores
--- the row directly via service-role key on signup.
+-- Mirrors only the identity fields needed by backend-owned tables.
+-- Password hashes remain local in SQLite and are never copied to Supabase.
 --
 -- We deliberately do NOT use Supabase Auth's `auth.users` as our
 -- primary user table because:
@@ -43,12 +41,14 @@ create table if not exists public.users (
     name            text not null,
     email           text unique not null,
     phone           text,                                   -- free-form, not verified
-    password_hash   text not null,                          -- "pbkdf2$<iters>$<salt>$<hash>"
+    password_hash   text,                                   -- legacy column; new accounts do not mirror password hashes
     home_area       text default '',                        -- neighborhood, e.g. "Halishahar"
     photo_url       text default '',                        -- public Firebase Storage URL
     phone_verified  boolean default false,
     created_at      timestamptz not null default now()
 );
+
+alter table public.users alter column password_hash drop not null;
 
 create index if not exists idx_users_email on public.users (lower(email));
 
@@ -56,9 +56,9 @@ create index if not exists idx_users_email on public.users (lower(email));
 -- ============================================================
 -- 2. EMERGENCY CONTACTS
 -- ============================================================
--- Trusted-circle contacts owned by a user. Currently exposed via
--- /auth/contacts endpoints. The circles table (below) is the newer
--- model; this one is kept for backwards compatibility.
+-- Legacy-compatible contacts table. Current /auth/contacts endpoints
+-- remain SQLite-backed; SOS recipient lookup combines those local rows
+-- with email-form circle members from the configured circle store.
 create table if not exists public.emergency_contacts (
     id          text primary key,
     user_id     text not null references public.users(id) on delete cascade,
@@ -91,6 +91,28 @@ create table if not exists public.incidents (
 
 create index if not exists idx_incidents_loc      on public.incidents (lat, lng);
 create index if not exists idx_incidents_created  on public.incidents (created_at desc);
+
+-- Nearby incident lookup uses a Haversine distance calculation in meters.
+create or replace function public.get_incidents_within(
+    lat_param double precision,
+    lng_param double precision,
+    radius_meters double precision,
+    days_back integer default 90
+)
+returns setof public.incidents
+language sql
+stable
+as $$
+    select i.*
+    from public.incidents i
+    where i.created_at >= now() - make_interval(days => greatest(days_back, 0))
+      and 6371000 * 2 * asin(sqrt(least(1::double precision,
+          power(sin(radians(i.lat - lat_param) / 2), 2)
+          + cos(radians(lat_param)) * cos(radians(i.lat))
+          * power(sin(radians(i.lng - lng_param) / 2), 2)
+      ))) <= greatest(radius_meters, 0)
+    order by i.created_at desc;
+$$;
 
 
 -- ============================================================
@@ -233,6 +255,7 @@ grant select, update on public.users to authenticated;
 
 grant select, insert, update, delete on public.emergency_contacts to authenticated;
 grant select, insert                on public.incidents          to anon, authenticated;
+grant execute on function public.get_incidents_within(double precision, double precision, double precision, integer) to anon, authenticated, service_role;
 
 grant select, insert, update, delete on public.circles        to authenticated;
 grant select, insert, update, delete on public.circle_members to authenticated;

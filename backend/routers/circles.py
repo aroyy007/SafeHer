@@ -10,12 +10,8 @@ Endpoints (all prefixed /circles):
   DELETE /{circle_id}             — delete a circle (cascade)
 
 Auth model:
-  Primary:  Authorization: Bearer <Supabase JWT>     (production)
-  Fallback: X-Session-Id: <uuid>                    (local dev / demo)
-
-  When a Supabase JWT is present, we extract the user_id from the
-  `sub` claim and use that as the owner_id. Otherwise we fall back to
-  the X-Session-Id header so the demo still works without Supabase.
+  All operations require the authenticated SafeHer account. X-Session-Id
+  is not an identity credential and cannot be used to claim circle ownership.
 
 All operations are ownership-checked: a different owner cannot read
 or mutate your circles.
@@ -23,7 +19,7 @@ or mutate your circles.
 
 import logging
 from typing import Optional, List
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -35,8 +31,7 @@ from services.circles_service import (
     remove_member,
     delete_circle,
 )
-from db.supabase_client import verify_supabase_jwt
-from services.auth_service import verify_token as verify_legacy_token
+from routers.auth import get_current_user
 
 logger = logging.getLogger("safeher.router.circles")
 
@@ -83,58 +78,15 @@ class MemberOut(BaseModel):
     relation: Optional[str] = None
 
 
-def _resolve_owner_id(
-    authorization: Optional[str],
-    x_session_id: Optional[str],
-) -> str:
-    """
-    Resolve the current owner_id from either a Supabase JWT (preferred)
-    or the legacy X-Session-Id header. Returns the user id string, or
-    raises 401.
-    """
-    # 1) Supabase JWT path
-    if authorization and authorization.lower().startswith("bearer "):
-        token = authorization.split(" ", 1)[1].strip()
-        sub = verify_supabase_jwt(token)
-        if sub:
-            return sub
-
-    # 2) Legacy HMAC token path (still passes through verify_token)
-    if authorization and authorization.lower().startswith("bearer "):
-        token = authorization.split(" ", 1)[1].strip()
-        uid = verify_legacy_token(token)
-        if uid:
-            return uid
-
-    # 3) Fallback: X-Session-Id header (hackathon dev mode)
-    if x_session_id and x_session_id.strip():
-        sid = x_session_id.strip()
-        if 8 <= len(sid) <= 128:
-            return sid
-
-    raise HTTPException(status_code=401, detail="Missing or invalid auth")
-
-
-def _owner_id(x_session_id: Optional[str]) -> str:
-    """Backwards-compatible helper used by routes that take only X-Session-Id."""
-    if not x_session_id or not x_session_id.strip():
-        raise HTTPException(status_code=401, detail="Missing X-Session-Id header")
-    sid = x_session_id.strip()
-    if len(sid) < 8 or len(sid) > 128:
-        raise HTTPException(status_code=401, detail="Invalid X-Session-Id")
-    return sid
-
-
 # ----- Routes -----
 
 @router.post("/", status_code=201, response_model=CircleOut)
 async def post_circle(
     body: CreateCircleBody,
-    authorization: Optional[str] = Header(default=None),
-    x_session_id: Optional[str] = Header(default=None),
+    user: dict = Depends(get_current_user),
 ):
     """Create a new trusted circle."""
-    owner_id = _resolve_owner_id(authorization, x_session_id)
+    owner_id = user["id"]
     circle = await create_circle(owner_id, body.name, body.color)
     return CircleOut(
         id=circle["id"],
@@ -147,11 +99,10 @@ async def post_circle(
 
 @router.get("/", response_model=List[CircleOut])
 async def get_circles(
-    authorization: Optional[str] = Header(default=None),
-    x_session_id: Optional[str] = Header(default=None),
+    user: dict = Depends(get_current_user),
 ):
     """List all circles owned by the current owner."""
-    owner_id = _resolve_owner_id(authorization, x_session_id)
+    owner_id = user["id"]
     rows = await list_circles(owner_id)
     return [
         CircleOut(
@@ -168,11 +119,10 @@ async def get_circles(
 @router.get("/{circle_id}")
 async def get_circle_detail(
     circle_id: str,
-    authorization: Optional[str] = Header(default=None),
-    x_session_id: Optional[str] = Header(default=None),
+    user: dict = Depends(get_current_user),
 ):
     """Get one circle, including all members."""
-    owner_id = _resolve_owner_id(authorization, x_session_id)
+    owner_id = user["id"]
     circle = await get_circle(circle_id, owner_id)
     if not circle:
         raise HTTPException(status_code=404, detail="circle_not_found")
@@ -190,11 +140,10 @@ async def get_circle_detail(
 async def post_member(
     circle_id: str,
     body: MemberBody,
-    authorization: Optional[str] = Header(default=None),
-    x_session_id: Optional[str] = Header(default=None),
+    user: dict = Depends(get_current_user),
 ):
     """Add a member to a circle you own."""
-    owner_id = _resolve_owner_id(authorization, x_session_id)
+    owner_id = user["id"]
     result = await add_member(circle_id, owner_id, body.name, body.contact, body.relation)
     if isinstance(result, dict) and result.get("error") == "circle_not_found":
         raise HTTPException(status_code=404, detail="circle_not_found")
@@ -210,11 +159,10 @@ async def post_member(
 async def delete_member(
     circle_id: str,
     member_id: str,
-    authorization: Optional[str] = Header(default=None),
-    x_session_id: Optional[str] = Header(default=None),
+    user: dict = Depends(get_current_user),
 ):
     """Remove a member from a circle you own."""
-    owner_id = _resolve_owner_id(authorization, x_session_id)
+    owner_id = user["id"]
     result = await remove_member(circle_id, owner_id, member_id)
     if not result.get("removed"):
         raise HTTPException(status_code=404, detail="circle_or_member_not_found")
@@ -224,11 +172,10 @@ async def delete_member(
 @router.delete("/{circle_id}")
 async def delete_circle_endpoint(
     circle_id: str,
-    authorization: Optional[str] = Header(default=None),
-    x_session_id: Optional[str] = Header(default=None),
+    user: dict = Depends(get_current_user),
 ):
     """Delete a circle (and cascade its members)."""
-    owner_id = _resolve_owner_id(authorization, x_session_id)
+    owner_id = user["id"]
     result = await delete_circle(circle_id, owner_id)
     if not result.get("deleted"):
         raise HTTPException(status_code=404, detail="circle_not_found")

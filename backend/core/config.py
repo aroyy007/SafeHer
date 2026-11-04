@@ -118,6 +118,7 @@ class Settings(BaseSettings):
     # --- Chittagong Center (for defaults) ---
     CTG_CENTER_LAT: float = Field(default=22.3569)
     CTG_CENTER_LNG: float = Field(default=91.7832)
+    GRAPH_RADIUS_M: int = Field(default=5000, description="Chattogram walking-graph and crime-data coverage radius")
 
     model_config = {
         "env_file": ".env",

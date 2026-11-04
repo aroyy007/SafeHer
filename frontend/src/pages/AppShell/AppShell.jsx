@@ -10,6 +10,8 @@ import { MapContainer } from '../../features/map/MapContainer';
 import { SafetyChat } from '../../features/chat/SafetyChat';
 import { Circles } from '../Circles/Circles';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../i18n/LanguageContext';
+import { LanguageSwitcher } from '../../i18n/LanguageSwitcher';
 import './appshell.css';
 
 /**
@@ -19,6 +21,7 @@ export function AppShell() {
   const [isDisguised, setIsDisguised] = useState(false);
   const [headerTaps, setHeaderTaps] = useState(0);
   const location = useLocation();
+  const { t } = useLanguage();
 
   // Triple-tap logic for disguise
   const handleHeaderTap = () => {
@@ -33,7 +36,10 @@ export function AppShell() {
   if (isDisguised) {
     return (
       <EmergencyProvider>
-        <DisguiseMode onExit={() => setIsDisguised(false)} />
+        <>
+          <LocationTracker />
+          <DisguiseMode onExit={() => setIsDisguised(false)} />
+        </>
       </EmergencyProvider>
     );
   }
@@ -44,13 +50,16 @@ export function AppShell() {
         <VoiceTrigger />
         <LocationTracker />
 
+        <a className="app-skip" href="#app-main">{t('Skip to current page')}</a>
+
         {/* Header — discreet triple-tap target */}
         <header onClick={handleHeaderTap} className="appshell__header">
           <h1 className="appshell__brand">SafeHer</h1>
+          <LanguageSwitcher />
         </header>
 
         {/* Main Content — keyed by route so it re-renders cleanly on tab change */}
-        <main className="content-area" key={location.pathname}>
+        <main id="app-main" className="content-area" key={location.pathname} tabIndex={-1}>
           {location.pathname === '/app' && <Navigate to="/app/sos" replace />}
           {location.pathname === '/app/sos' && (
             <div className="appshell__tab flex-center animate-fade-in">
@@ -80,7 +89,7 @@ export function AppShell() {
         </main>
 
         {/* Bottom Navigation */}
-        <nav className="bottom-nav" aria-label="Primary">
+        <nav className="bottom-nav" aria-label={t('Primary navigation')}>
           <NavItem to="/app/sos" label="SOS" icon={<ShieldAlert size={20} strokeWidth={1.75} />} />
           <NavItem to="/app/map" label="Map" icon={<MapIcon size={20} strokeWidth={1.75} />} />
           <NavItem to="/app/chat" label="Chat" icon={<MessageCircle size={20} strokeWidth={1.75} />} />
@@ -93,20 +102,22 @@ export function AppShell() {
 }
 
 function NavItem({ to, label, icon }) {
+  const { t } = useLanguage();
   return (
     <NavLink
       to={to}
       className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-      aria-label={label}
+      aria-label={t(label)}
     >
       {icon}
-      <span>{label}</span>
+      <span>{t(label)}</span>
     </NavLink>
   );
 }
 
 function YouTab() {
   const { user, contacts, logout, addContact, deleteContact } = useAuth();
+  const { t } = useLanguage();
   const [showAddForm, setShowAddForm] = useState(false);
   const [newContact, setNewContact] = useState({ name: '', phone: '', email: '', relation: 'Friend' });
 
@@ -121,11 +132,11 @@ function YouTab() {
     <div className="appshell__scroll">
       <div className="appshell__page-head">
         <div>
-          <span className="eyebrow">Profile</span>
-          <h2 className="appshell__page-title">You</h2>
+          <span className="eyebrow">{t('Profile')}</span>
+          <h2 className="appshell__page-title">{t('You')}</h2>
         </div>
         <button onClick={logout} className="btn btn-ghost" style={{ color: 'var(--color-danger)' }}>
-          <LogOut size={14} /> Logout
+          <LogOut size={14} /> {t('Logout')}
         </button>
       </div>
 
@@ -135,7 +146,7 @@ function YouTab() {
             {(user.name || user.email || '?').slice(0, 1).toUpperCase()}
           </div>
           <div className="appshell__user-info">
-            <h3 className="appshell__user-name">{user.name || 'Anonymous'}</h3>
+            <h3 className="appshell__user-name">{user.name || t('Anonymous')}</h3>
             <p className="appshell__user-meta">{user.email}</p>
             <p className="appshell__user-meta">{user.phone}</p>
           </div>
@@ -143,37 +154,35 @@ function YouTab() {
       )}
 
       <div className="appshell__section-head">
-        <h3 className="appshell__section-title">Emergency contacts</h3>
+        <h3 className="appshell__section-title">{t('Emergency contacts')}</h3>
         {!showAddForm && (
           <button onClick={() => setShowAddForm(true)} className="btn btn-primary" style={{ minHeight: 36, padding: '0.4rem 0.875rem', fontSize: '0.8125rem' }}>
-            <Plus size={12} /> Add
+            <Plus size={12} /> {t('Add')}
           </button>
         )}
       </div>
 
       {showAddForm && (
         <form onSubmit={handleAddContact} className="appshell__card appshell__form">
-          <h4 className="appshell__form-title">New contact</h4>
+          <h4 className="appshell__form-title">{t('New contact')}</h4>
           <div className="appshell__form-grid">
-            <input required placeholder="Name" className="input-field" value={newContact.name} onChange={e => setNewContact({...newContact, name: e.target.value})} />
-            <input required placeholder="Phone" type="tel" className="input-field" value={newContact.phone} onChange={e => setNewContact({...newContact, phone: e.target.value})} />
-            <input placeholder="Email (strongly recommended)" type="email" className="input-field" value={newContact.email} onChange={e => setNewContact({...newContact, email: e.target.value})} />
+            <input required placeholder={t('Name')} aria-label={t('Name')} className="input-field" value={newContact.name} onChange={e => setNewContact({...newContact, name: e.target.value})} />
+            <input required placeholder={t('Phone')} aria-label={t('Phone')} type="tel" className="input-field" value={newContact.phone} onChange={e => setNewContact({...newContact, phone: e.target.value})} />
+            <input placeholder={t('Email (strongly recommended)')} aria-label={t('Email (strongly recommended)')} type="email" className="input-field" value={newContact.email} onChange={e => setNewContact({...newContact, email: e.target.value})} />
           </div>
-          <p style={{ margin: '6px 0 0', fontSize: 12, color: '#888' }}>
-            SOS alerts send by email so the contact receives your live tracking
-            link even when SMS is blocked. Phone alone works for voice calls but
-            not for the tracking link.
+          <p className="appshell__form-note">
+            {t('SOS alerts send by email so the contact receives your live tracking link even when SMS is blocked. Phone alone works for voice calls but not for the tracking link.')}
           </p>
           <div className="appshell__form-actions">
-            <button type="submit" className="btn btn-primary">Save</button>
-            <button type="button" onClick={() => setShowAddForm(false)} className="btn btn-ghost">Cancel</button>
+            <button type="submit" className="btn btn-primary">{t('Save')}</button>
+            <button type="button" onClick={() => setShowAddForm(false)} className="btn btn-ghost">{t('Cancel')}</button>
           </div>
         </form>
       )}
 
       <div className="appshell__list">
         {contacts.length === 0 && !showAddForm ? (
-          <p className="appshell__empty">No emergency contacts added yet.</p>
+          <p className="appshell__empty">{t('No emergency contacts added yet.')}</p>
         ) : (
           contacts.map(c => (
             <div key={c.id} className="appshell__row">
@@ -184,10 +193,10 @@ function YouTab() {
                 <p className="appshell__row-name">{c.name}</p>
                 <p className="appshell__row-meta">
                   {c.phone}
-                  {c.email ? ` · ${c.email}` : ' · ⚠ no email (tracking link will not be delivered)'}
+                  {c.email ? ` · ${c.email}` : ` · ${t('No email; tracking link cannot be delivered')}`}
                 </p>
               </div>
-              <button onClick={() => deleteContact(c.id)} className="appshell__icon-btn" aria-label={`Delete ${c.name}`}>
+              <button onClick={() => deleteContact(c.id)} className="appshell__icon-btn" aria-label={t('Delete {name}', { name: c.name })}>
                 <Trash2 size={14} />
               </button>
             </div>
@@ -195,7 +204,7 @@ function YouTab() {
         )}
       </div>
       <p className="appshell__hint">
-        These contacts will be automatically notified when you activate SOS.
+        {t('Contacts need a saved email address to receive an alert link. Delivery can depend on network and email availability.')}
       </p>
     </div>
   );

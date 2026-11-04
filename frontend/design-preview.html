@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SafeHer design system preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root { font-family: 'Plus Jakarta Sans', 'Noto Sans Bengali', sans-serif; color: #18332b; background: #f7f8f3; }
+      * { box-sizing: border-box; }
+      body { max-width: 1120px; margin: 0 auto; padding: clamp(20px, 5vw, 64px); }
+      h1 { max-width: 12ch; margin: 0; font-size: clamp(2.3rem, 6vw, 4.5rem); line-height: 1.04; letter-spacing: -.055em; }
+      p { max-width: 62ch; line-height: 1.7; color: #52665d; }
+      .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 40px; }
+      .panel { padding: 24px; border: 1px solid #dce4dc; border-radius: 14px; background: #fff; }
+      .swatches { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 18px; }
+      .swatch { min-height: 88px; padding: 8px; border-radius: 10px; font-size: 12px; }
+      .button { min-height: 46px; padding: 0 18px; border: 0; border-radius: 10px; color: #fff; background: #486a55; font: inherit; font-weight: 600; }
+      .button:focus-visible { outline: 3px solid #18332b; outline-offset: 3px; }
+      .sos { width: 154px; height: 154px; display: grid; place-content: center; margin: 20px auto 8px; border: 1px solid #e0b8b4; border-radius: 50%; color: #b5413b; background: #fff; box-shadow: 0 0 0 8px #f8e9e7; text-align: center; }
+      .sos strong { font-size: 2.2rem; line-height: 1; }
+      .sos span { margin-top: 8px; font-size: .7rem; color: #68776f; }
+      @media (max-width: 680px) { .grid { grid-template-columns: 1fr; } .swatches { grid-template-columns: repeat(2, 1fr); } }
+    </style>
+  </head>
+  <body>
+    <p>SAFEHER · DESIGN SYSTEM</p>
+    <h1>Help, kept close.</h1>
+    <p>Calm by default. Clear when action matters. The moss brand accent guides everyday use; emergency red is reserved for active SOS and direct help actions.</p>
+    <div class="grid">
+      <section class="panel" aria-labelledby="palette-title">
+        <h2 id="palette-title">Color roles</h2>
+        <div class="swatches">
+          <div class="swatch" style="background:#f7f8f3">Paper<br/>#F7F8F3</div>
+          <div class="swatch" style="background:#18332b;color:white">Forest<br/>#18332B</div>
+          <div class="swatch" style="background:#486a55;color:white">Moss<br/>#486A55</div>
+          <div class="swatch" style="background:#e8eff2">Map slate<br/>#E8EFF2</div>
+          <div class="swatch" style="background:#b5413b;color:white">Emergency<br/>#B5413B</div>
+        </div>
+      </section>
+      <section class="panel" aria-labelledby="action-title">
+        <h2 id="action-title">Primary action</h2>
+        <p>A quiet moss action fits routine setup. SOS remains a separate, high-signal control.</p>
+        <button class="button" type="button">Open SafeHer</button>
+      </section>
+      <section class="panel" aria-labelledby="sos-title">
+        <h2 id="sos-title">SOS preview · inactive</h2>
+        <div class="sos"><div><strong>SOS</strong><br/><span>PRESS &amp; HOLD</span></div></div>
+        <p style="text-align:center">Hold for three seconds to alert your configured trusted contacts.</p>
+      </section>
+      <section class="panel" aria-labelledby="type-title">
+        <h2 id="type-title">English + বাংলা</h2>
+        <p style="font-size:1.3rem;color:#18332b">Your people, within reach.</p>
+        <p lang="bn" style="font-family:'Noto Sans Bengali',sans-serif;font-size:1.2rem;color:#18332b">আপনার বিশ্বস্ত মানুষ, কাছেই।</p>
+      </section>
+    </div>
+  </body>
+</html>

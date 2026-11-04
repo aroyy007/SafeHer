@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { api } from '../../lib/api';
+import { useLanguage } from '../../i18n/LanguageContext';
 
 const CATEGORIES = [
   { value: 'eve_teasing', label: 'Eve-teasing / harassment' },
@@ -27,6 +28,7 @@ const TIMES = [
  * `session_id` for rate-limiting).
  */
 export function IncidentReportModal({ initialCoords, onClose, onReported }) {
+  const { t, language } = useLanguage();
   const [category, setCategory] = useState('unsafe_lighting');
   const [timeOfDay, setTimeOfDay] = useState('night');
   const [description, setDescription] = useState('');
@@ -79,9 +81,9 @@ export function IncidentReportModal({ initialCoords, onClose, onReported }) {
       <ModalShell onClose={onClose}>
         <div style={{ textAlign: 'center', padding: '1rem 0' }}>
           <CheckCircle2 size={56} color="var(--color-success, #10b981)" />
-          <h3 style={{ marginTop: '1rem', fontSize: '1.125rem' }}>Report submitted</h3>
+          <h3 style={{ marginTop: '1rem', fontSize: '1.125rem' }}>{t('Report submitted')}</h3>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginTop: '0.5rem' }}>
-            Thank you for making the community safer. Your report helps warn other women.
+            {t('Thank you for making the community safer. Your report helps warn other women.')}
           </p>
         </div>
       </ModalShell>
@@ -93,12 +95,12 @@ export function IncidentReportModal({ initialCoords, onClose, onReported }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <AlertTriangle size={22} color="var(--color-danger)" />
-          <h2 style={{ fontSize: '1.125rem', fontWeight: 600 }}>Report an incident</h2>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: 600 }}>{t('Report an incident')}</h2>
         </div>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t('Close')}
           style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.25rem' }}
         >
           <X size={20} />
@@ -106,14 +108,13 @@ export function IncidentReportModal({ initialCoords, onClose, onReported }) {
       </div>
 
       <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8125rem', marginBottom: '1rem' }}>
-        Reports are anonymous by default and help other women avoid unsafe spots.
-        Don't include your name or identifying details in the description.
+        {t('Reports are anonymous by default and help other women avoid unsafe spots. Don’t include your name or identifying details in the description.')}
       </p>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
         <div>
           <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
-            Category
+            {t('Category')}
           </label>
           <select
             className="input-field"
@@ -123,14 +124,14 @@ export function IncidentReportModal({ initialCoords, onClose, onReported }) {
             disabled={isSubmitting}
           >
             {CATEGORIES.map(c => (
-              <option key={c.value} value={c.value}>{c.label}</option>
+              <option key={c.value} value={c.value}>{t(c.label)}</option>
             ))}
           </select>
         </div>
 
         <div>
           <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
-            When did it happen?
+            {t('When did it happen?')}
           </label>
           <select
             className="input-field"
@@ -139,33 +140,33 @@ export function IncidentReportModal({ initialCoords, onClose, onReported }) {
             style={{ width: '100%' }}
             disabled={isSubmitting}
           >
-            {TIMES.map(t => (
-              <option key={t.value} value={t.value}>{t.label}</option>
+            {TIMES.map(time => (
+              <option key={time.value} value={time.value}>{t(time.label)}</option>
             ))}
           </select>
         </div>
 
         <div>
           <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
-            Description (optional, max 500 chars)
+            {t('Description (optional, max 500 chars)')}
           </label>
           <textarea
             className="input-field"
             value={description}
             onChange={(e) => setDescription(e.target.value.slice(0, 500))}
             rows={3}
-            placeholder="What happened? Any landmarks nearby?"
+            placeholder={t('What happened? Any landmarks nearby?')}
             style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit', fontSize: '0.875rem' }}
             disabled={isSubmitting}
           />
           <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', textAlign: 'right', marginTop: '0.25rem' }}>
-            {description.length} / 500
+            {new Intl.NumberFormat(language === 'bn' ? 'bn-BD' : 'en').format(description.length)} / {new Intl.NumberFormat(language === 'bn' ? 'bn-BD' : 'en').format(500)}
           </div>
         </div>
 
         {initialCoords && (
           <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-            Location: {initialCoords.lat.toFixed(4)}, {initialCoords.lng.toFixed(4)}
+            {t('Location')}: {new Intl.NumberFormat(language === 'bn' ? 'bn-BD' : 'en', { maximumFractionDigits: 4 }).format(initialCoords.lat)}, {new Intl.NumberFormat(language === 'bn' ? 'bn-BD' : 'en', { maximumFractionDigits: 4 }).format(initialCoords.lng)}
           </div>
         )}
 
@@ -176,12 +177,12 @@ export function IncidentReportModal({ initialCoords, onClose, onReported }) {
             onChange={(e) => setAnonymous(e.target.checked)}
             disabled={isSubmitting}
           />
-          Submit anonymously (recommended)
+          {t('Submit anonymously (recommended)')}
         </label>
 
         {errorMsg && (
           <div role="alert" style={{ color: 'var(--color-danger)', fontSize: '0.8125rem', textAlign: 'center' }}>
-            {errorMsg}
+            {t(errorMsg)}
           </div>
         )}
 
@@ -191,7 +192,7 @@ export function IncidentReportModal({ initialCoords, onClose, onReported }) {
           disabled={isSubmitting}
           style={{ padding: '0.75rem', marginTop: '0.25rem' }}
         >
-          {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : 'Submit Report'}
+          {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : t('Submit Report')}
         </button>
       </form>
     </ModalShell>

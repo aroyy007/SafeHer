@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../i18n/LanguageContext';
+import { LanguageSwitcher } from '../../i18n/LanguageSwitcher';
 import { ShieldCheck, Loader2, ArrowRight, ChevronRight } from 'lucide-react';
 import './auth.css';
 
@@ -10,6 +12,7 @@ export function Login() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -39,24 +42,23 @@ export function Login() {
         </Link>
 
         <div className="auth__panel-body">
-          <div className="eyebrow">Welcome back</div>
+          <div className="eyebrow">{t('Welcome back')}</div>
           <h2 className="auth__panel-title">
-            <em>Three seconds</em><br />to a safer you.
+            {t('Keep your')} <em>{t('people close')}</em><br />{t('when it matters.')}
           </h2>
           <p className="auth__panel-text">
-            Trusted by your circle, designed for Bangladesh. One hold of the SOS button alerts everyone
-            who matters and shares your live location — instantly.
+            {t('Sign in to manage the people you want to reach, review route options where available, and open your safety tools.')}
           </p>
 
           <ul className="auth__panel-list">
             <li>
-              <span className="auth__panel-dot" /> Bengali voice trigger — say <span className="font-bn">"বাঁচাও"</span>
+              <span className="auth__panel-dot" /> {t('Hold SOS for three seconds to start an alert')}
             </li>
             <li>
-              <span className="auth__panel-dot" /> Crime-aware safe routes
+              <span className="auth__panel-dot" /> {t('Route estimates have limited Chattogram coverage')}
             </li>
             <li>
-              <span className="auth__panel-dot" /> Live location sharing — no install on the other end
+              <span className="auth__panel-dot" /> {t('Active location links expire after 24 hours')}
             </li>
           </ul>
         </div>
@@ -70,22 +72,23 @@ export function Login() {
       {/* Right: form */}
       <main className="auth__main">
         <div className="auth__form-wrap">
-          <Link to="/" className="auth__home-link">
-            ← Back to home
-          </Link>
+          <div className="auth__utility-row">
+            <Link to="/" className="auth__home-link">{t('← Back to home')}</Link>
+            <LanguageSwitcher />
+          </div>
 
           <header className="auth__form-head">
-            <h1 className="auth__title">Sign in</h1>
-            <p className="auth__sub">Continue your safety setup.</p>
+            <h1 className="auth__title">{t('Sign in')}</h1>
+            <p className="auth__sub">{t('Continue your safety setup.')}</p>
           </header>
 
           {error && (
-            <div className="auth__error" role="alert">{error}</div>
+            <div className="auth__error" role="alert">{t(error)}</div>
           )}
 
           <form onSubmit={handleSubmit} className="auth__form">
             <div className="auth__field">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="email">{t('Email')}</label>
               <input
                 id="email"
                 type="email"
@@ -97,9 +100,8 @@ export function Login() {
               />
             </div>
             <div className="auth__field">
-              <div className="auth__field-row">
-                <label htmlFor="password">Password</label>
-                <a href="#" className="auth__forgot">Forgot?</a>
+            <div className="auth__field-row">
+                <label htmlFor="password">{t('Password')}</label>
               </div>
               <input
                 id="password"
@@ -120,25 +122,25 @@ export function Login() {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="animate-spin" size={16} /> Signing in…
+                  <Loader2 className="animate-spin" size={16} /> {t('Signing in…')}
                 </>
               ) : (
                 <>
-                  Sign in <ArrowRight size={16} />
+                  {t('Sign in')} <ArrowRight size={16} />
                 </>
               )}
             </button>
           </form>
 
           <p className="auth__alt">
-            Don&rsquo;t have an account?{' '}
+            {t('Don’t have an account?')}{' '}
             <Link to="/signup" className="auth__link">
-              Create one <ChevronRight size={12} />
+              {t('Create one')} <ChevronRight size={12} />
             </Link>
           </p>
 
           <p className="auth__hint">
-            Demo credentials are pre-filled for the SciBlitz review.
+            {t('Demo credentials are pre-filled for the SciBlitz review.')}
           </p>
         </div>
       </main>

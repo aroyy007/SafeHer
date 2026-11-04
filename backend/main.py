@@ -65,9 +65,9 @@ async def lifespan(app: FastAPI):
             "RAG endpoints will degrade gracefully."
         )
 
-    # 1. Initialize local SQLite fallback
-    if not settings.USE_SUPABASE:
-        await init_db()
+    # SafeHer authentication remains SQLite-backed in both storage modes.
+    # Initialize it even when incidents/circles use Supabase.
+    await init_db()
 
     # 2. Seed Knowledge Base (if empty)
     # Skipped entirely in RAG_DISABLED or LITE_MODE — would OOM on Render

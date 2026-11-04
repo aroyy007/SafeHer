@@ -1,23 +1,20 @@
-Good. I have all the verified links. Now building the clean reference table.Five tabs, one for each category. Here is the plain summary so you know exactly what to download and when.
+# SafeHer dataset register
 
----
+## CrimeDataBD (current incident source)
 
-**Download these right now (before you write any code):**
+- **Local file:** `backend/data/crimedatabd.csv`
+- **Upstream record:** [CrimeDataBD v4, Mendeley Data](https://data.mendeley.com/datasets/d7vzpcdzcw/4)
+- **Citation:** Faisal Tareque Shohan, Abu Ubaida Akash, Muhammad Ibrahim, and Mohammad Shafiul Alam (2025), DOI [10.17632/d7vzpcdzcw.4](https://doi.org/10.17632/d7vzpcdzcw.4).
+- **Version date:** 9 June 2025 (version 4).
+- **License:** CC BY-NC 4.0. Give attribution and do not use commercially without resolving the non-commercial restriction.
+- **Contents:** 6,574 Bangladesh crime records. The project archive also contains an identical copy under `CrimeDataBD A Standard Dataset of Crime Records in/Bangladesh-Crime-Dataset.csv`; keep the backend copy canonical.
+- **Limitations:** News-derived, approximate incident locations; no year field and no victim-gender field. Do not describe these as female-only records, model training labels, or verified police incident locations.
+- **Use in SafeHer:** The graph precompute filters coordinates to a 5 km radius around the configured Chattogram graph center before KDE scoring. The map displays only aggregate counts in approximately 1 km cells within the same area; community-submitted reports are a separate data layer. The source spans Bangladesh, so use outside that graph must apply an appropriate geographic filter.
 
-CrimeDataBD at `data.mendeley.com/datasets/d7vzpcdzcw/4` — this is your most important file. It is a single CSV with 6,574 Bangladesh crime records. Filter for `victim_gender == "female"` and you have your incident density training data.
+## Other candidate sources
 
-Bangladesh Police historical data at `github.com/mjtbasif/Bangladesh-Crime-Data` — one CSV per year from 2010 to 2019. Download these to cross-validate your KDE model and for your Model and Data Card.
+The supplied research note names `mjtbasif/Bangladesh-Crime-Data` and other potentially useful sources, but they are not present in this project and have not been integrated. The repository's official provenance, schema, license, geographic precision, and suitability have not been verified. Do not call it official police data or use it for trend validation until those checks are complete. Aggregated police statistics can support trend context but cannot replace point-level routing inputs.
 
-**These you do not download — you install or call via API:**
+## Model and interpretation
 
-OpenStreetMap data for Bangladesh is available from Geofabrik, but for your case you do not need to download it manually. You run `ox.graph_from_place("Chittagong, Bangladesh", network_type="walk")` once locally and it pulls exactly what you need through the Overpass API, which is a read-only API that serves custom selected parts of OSM map data.
-
-The l3cube Bengali SBERT model is on HuggingFace at `l3cube-pune/bengali-sentence-similarity-sbert` — it installs via `pip install sentence-transformers` and downloads automatically the first time your code runs.
-
-The Groq API key comes from `console.groq.com`. Free account, no card required.
-
-**These you only read and cite, never download:**
-
-The SafetiPin paper "an innovative mobile app to collect data on women's safety in Indian cities" is published in Gender and Development 2015 at `doi.org/10.1080/13552074.2015.1013669`. Your safety score weights are derived from their nine-parameter framework. Cite this paper in your Model and Data Card when a judge asks why your weights are 0.35/0.40/0.25.
-
-The PoRAG project at `github.com/Bangla-RAG/PoRAG` is the source for your embedding model choice — they tested three Bengali embedding models and the l3cube model won. Cite this when explaining why you chose that embedder over BanglaBERT.
+CrimeDataBD is one heuristic component in route scoring. Its density score is not a prediction of an individual's risk, a guarantee of safety, or an official crime rate. Keep dataset provenance visible in product and technical documentation.

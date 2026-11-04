@@ -21,7 +21,7 @@ _recent_sos_events: Dict[str, int] = {}
 DEDUP_WINDOW_MS = 30_000  # 30 seconds
 
 
-async def log_sos_event(event_data, client_ip: str):
+async def log_sos_event(event_data):
     """Log an SOS event, deduplicating fast subsequent triggers."""
     now = int(time.time() * 1000)
 
@@ -39,27 +39,24 @@ async def log_sos_event(event_data, client_ip: str):
     # 3. Save
     try:
         if settings.USE_SUPABASE:
-            from db.supabase_client import get_supabase
-            supabase = get_supabase()
-            supabase.table("sos_events").insert({
+            from db.supabase_client import get_supabase_admin
+            supabase = get_supabase_admin()
+            supabase.table("sos_logs").insert({
                 "session_id": event_data.session_id,
                 "lat": event_data.lat,
                 "lng": event_data.lng,
-                "timestamp_ms": event_data.timestamp,
                 "trigger_method": event_data.trigger_method,
                 "lang_at_trigger": event_data.lang_at_trigger,
+                "payload": {"timestamp_ms": event_data.timestamp},
             }).execute()
         else:
             # Local file fallback
             from db.local_db import insert_sos_log
             await insert_sos_log(event_data.model_dump())
 
-        logger.critical(
-            f"🚨 SOS ACTIVATED: method={event_data.trigger_method}, "
-            f"loc={event_data.lat},{event_data.lng}"
-        )
+        logger.critical("SOS activation audit event recorded: trigger=%s", event_data.trigger_method)
     except Exception as e:
-        logger.error(f"Failed to log SOS event: {e}")
+        logger.error("Failed to log SOS event (%s)", type(e).__name__)
         # We don't raise here — the user shouldn't see an error when
         # triggering an SOS just because our analytics DB failed.
 

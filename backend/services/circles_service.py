@@ -6,7 +6,8 @@ Stores user-defined trusted circles: each circle has an owner and
 who get SOS alerts).
 
 Storage:
-  - If USE_SUPABASE=true → uses Supabase tables `circles` + `circle_members`.
+  - If USE_SUPABASE=true → uses Supabase tables `circles` + `circle_members`
+    through the backend service-role client, with ownership checks here.
   - Otherwise → uses local SQLite (data/safeher_local.db) for the demo.
 
 This is a CRUD service; the alert-dispatch side lives in the frontend
@@ -37,8 +38,8 @@ async def create_circle(owner_id: str, name: str, color: Optional[str] = None) -
     }
 
     if settings.USE_SUPABASE:
-        from db.supabase_client import get_supabase
-        supabase = get_supabase()
+        from db.supabase_client import get_supabase_admin
+        supabase = get_supabase_admin()
         res = supabase.table("circles").insert(payload).execute()
         if res.data:
             return res.data[0]
@@ -53,8 +54,8 @@ async def create_circle(owner_id: str, name: str, color: Optional[str] = None) -
 async def list_circles(owner_id: str) -> List[Dict[str, Any]]:
     """List all circles owned by a user (with member counts)."""
     if settings.USE_SUPABASE:
-        from db.supabase_client import get_supabase
-        supabase = get_supabase()
+        from db.supabase_client import get_supabase_admin
+        supabase = get_supabase_admin()
         res = supabase.table("circles").select("*, circle_members(id)").eq("owner_id", owner_id).execute()
         circles = res.data or []
         for c in circles:
@@ -68,8 +69,8 @@ async def list_circles(owner_id: str) -> List[Dict[str, Any]]:
 async def get_circle(circle_id: str, owner_id: str) -> Optional[Dict[str, Any]]:
     """Get one circle (with full member list) — verifies ownership."""
     if settings.USE_SUPABASE:
-        from db.supabase_client import get_supabase
-        supabase = get_supabase()
+        from db.supabase_client import get_supabase_admin
+        supabase = get_supabase_admin()
         res = (
             supabase.table("circles")
             .select("*, circle_members(*)")
@@ -103,8 +104,8 @@ async def add_member(
     }
 
     if settings.USE_SUPABASE:
-        from db.supabase_client import get_supabase
-        supabase = get_supabase()
+        from db.supabase_client import get_supabase_admin
+        supabase = get_supabase_admin()
         # Verify ownership first
         own = supabase.table("circles").select("id").eq("id", circle_id).eq("owner_id", owner_id).execute()
         if not own.data:
@@ -123,8 +124,8 @@ async def add_member(
 async def remove_member(circle_id: str, owner_id: str, member_id: str) -> Dict[str, Any]:
     """Remove a member from a circle (ownership-checked)."""
     if settings.USE_SUPABASE:
-        from db.supabase_client import get_supabase
-        supabase = get_supabase()
+        from db.supabase_client import get_supabase_admin
+        supabase = get_supabase_admin()
         own = (
             supabase.table("circles")
             .select("id")
@@ -148,8 +149,8 @@ async def remove_member(circle_id: str, owner_id: str, member_id: str) -> Dict[s
 async def delete_circle(circle_id: str, owner_id: str) -> Dict[str, Any]:
     """Delete a circle and all its members (cascade)."""
     if settings.USE_SUPABASE:
-        from db.supabase_client import get_supabase
-        supabase = get_supabase()
+        from db.supabase_client import get_supabase_admin
+        supabase = get_supabase_admin()
         own = (
             supabase.table("circles")
             .select("id")

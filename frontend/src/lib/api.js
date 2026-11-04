@@ -4,7 +4,7 @@
  * Every fetch to the FastAPI backend goes through this module so the
  * base URL is environment-driven (VITE_API_URL) instead of hard-coded.
  *
- * Auth: prefers a Supabase JWT (or legacy SafeHer token) stored in
+ * Auth: uses the SafeHer HMAC token (or a compatible Supabase JWT) stored in
  * localStorage under `safeher.token`. Falls back to an X-Session-Id
  * UUID for hackathon dev mode.
  */
@@ -18,8 +18,8 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 async function request(path, options = {}) {
   const url = `${API_BASE}${path}`;
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -51,13 +51,13 @@ function getSessionId() {
 
 /**
  * Read the auth token from localStorage. Order of preference:
- *   1. `safeher.jwt`     — Supabase access token (HS256 JWT)
- *   2. `safeher.token`   — legacy SafeHer HMAC token
+ *   1. `safeher.token`   — SafeHer HMAC token (authoritative local account)
+ *   2. `safeher.jwt`     — optional compatible Supabase JWT
  */
 function getAuthToken() {
   return (
-    localStorage.getItem('safeher.jwt') ||
     localStorage.getItem('safeher.token') ||
+    localStorage.getItem('safeher.jwt') ||
     null
   );
 }
@@ -117,7 +117,10 @@ export const api = {
     }),
 
   logSOS: (event) =>
-    request('/sos/log', { method: 'POST', body: JSON.stringify(event) }),
+    request('/sos/log', { method: 'POST', body: JSON.stringify(event), headers: authHeaders() }),
+
+  sosAlert: (data) =>
+    request('/sos/alert', { method: 'POST', body: JSON.stringify(data), headers: authHeaders() }),
 
   // ----- Trusted Circles -----
 
@@ -168,7 +171,7 @@ export const api = {
       headers: sessionHeaders(),
     }),
 
-  /** Fetch hand-curated hotspot GeoJSON for the map heatmap layer. */
+  /** Fetch approximate CrimeDataBD record counts aggregated by map cell. */
   heatmap: () => request('/heatmap/'),
 
   // ----- Auth & Contacts -----
@@ -177,6 +180,7 @@ export const api = {
     signup: (data) => request('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
     // Reads token from localStorage automatically (Supabase JWT first, then legacy HMAC)
     getMe: () => request('/auth/me', { headers: authHeaders() }),
+    getSOSContacts: () => request('/auth/sos-contacts', { headers: authHeaders() }),
     addContact: (contact) =>
       request('/auth/contacts', { method: 'POST', headers: authHeaders(), body: JSON.stringify(contact) }),
     deleteContact: (id) =>

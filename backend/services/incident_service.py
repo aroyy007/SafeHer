@@ -21,7 +21,7 @@ settings = get_settings()
 async def save_incident(incident_data, client_ip: str) -> Dict[str, Any]:
     """Save a new incident report."""
     if settings.USE_SUPABASE:
-        return await _save_supabase(incident_data, client_ip)
+        return await _save_supabase(incident_data)
     else:
         return await _save_local(incident_data, client_ip)
 
@@ -36,31 +36,28 @@ async def get_nearby_incidents(lat: float, lng: float, radius_m: int, days_back:
 
 # --- Supabase Implementation ---
 
-async def _save_supabase(data, ip: str):
-    from db.supabase_client import get_supabase
-    supabase = get_supabase()
+async def _save_supabase(data):
+    from db.supabase_client import get_supabase_admin
+    import uuid
 
-    # PostGIS point format: 'SRID=4326;POINT(lng lat)'
-    # Note: PostGIS uses Longitude First
-    point = f"SRID=4326;POINT({data.lng} {data.lat})"
-
+    supabase = get_supabase_admin()
+    incident_id = str(uuid.uuid4())
     res = supabase.table("incidents").insert({
+        "id": incident_id,
         "lat": data.lat,
         "lng": data.lng,
-        "location": point,
         "category": data.category,
         "description": data.description,
         "time_of_day": data.time_of_day,
         "anonymous": data.anonymous,
-        "client_ip_hash": hash(ip),  # Simple privacy-preserving hash
     }).execute()
 
-    return res.data[0] if res.data else {"id": "unknown"}
+    return res.data[0] if res.data else {"id": incident_id}
 
 
 async def _get_nearby_supabase(lat: float, lng: float, radius_m: int, days_back: int):
-    from db.supabase_client import get_supabase
-    supabase = get_supabase()
+    from db.supabase_client import get_supabase_admin
+    supabase = get_supabase_admin()
 
     # We use a database function (RPC) to do the PostGIS query since
     # Supabase JS/Python clients can't do complex PostGIS filters natively yet

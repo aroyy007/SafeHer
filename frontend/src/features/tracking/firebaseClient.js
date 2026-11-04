@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, set, onValue, off, update } from 'firebase/database';
+import { getDatabase, ref, onValue, off, update, remove } from 'firebase/database';
 
 // Firebase configuration is loaded from environment variables so the same
 // build works in dev, staging, and production. See .env.example for the
@@ -30,40 +30,68 @@ try {
 }
 
 export const isFirebaseReady = !!db;
+export const TRACKING_TTL_MS = 24 * 60 * 60 * 1000;
 
-export const updateLiveLocation = (userId, lat, lng) => {
-  if (!db) return;
-  const locationRef = ref(db, 'locations/' + userId);
-  set(locationRef, {
+export const updateLiveLocation = (sessionId, lat, lng, createdAt, expiresAt) => {
+  if (!db || !sessionId || !Number.isFinite(createdAt) || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    return Promise.resolve(false);
+  }
+
+  const locationRef = ref(db, 'locations/' + sessionId);
+  return update(locationRef, {
+    createdAt,
+    expiresAt,
     lat,
     lng,
-    timestamp: Date.now()
-  }).catch(err => console.error("Firebase update failed:", err));
+    timestamp: Date.now(),
+  }).then(() => true).catch(err => {
+    console.error("Firebase update failed:", err);
+    return false;
+  });
 };
 
 /**
  * Push profile metadata (name, photo URL) into the same Realtime DB
  * node so the /track page can render "It's really Nadia" alongside
- * the live marker. Called once per SOS activation.
+ * the live marker. Called once per SOS activation. The fixed expiry is
+ * written atomically with the profile so profile-only sessions also expire.
  */
-export const updateSessionProfile = (userId, { name, photoUrl, phone }) => {
-  if (!db) return;
-  const profileRef = ref(db, 'locations/' + userId + '/profile');
-  set(profileRef, {
-    name: name || '',
-    photoUrl: photoUrl || '',
-    phone: phone || '',
-    updatedAt: Date.now(),
-  }).catch(err => console.error('Firebase profile update failed:', err));
+export const updateSessionProfile = (sessionId, { name, photoUrl, phone }, { createdAt, expiresAt }) => {
+  if (!db || !sessionId || !Number.isFinite(createdAt) || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    return Promise.resolve(false);
+  }
+
+  return update(ref(db, 'locations/' + sessionId), {
+    createdAt,
+    expiresAt,
+    profile: {
+      name: name || '',
+      photoUrl: photoUrl || '',
+      phone: phone || '',
+      updatedAt: Date.now(),
+    },
+  }).then(() => true).catch(err => {
+    console.error('Firebase profile update failed:', err);
+    return false;
+  });
 };
 
-export const subscribeToLocation = (userId, callback) => {
+export const subscribeToLocation = (userId, callback, onError = () => {}) => {
   if (!db) return () => {};
   const locationRef = ref(db, 'locations/' + userId);
-  onValue(locationRef, (snapshot) => {
-    const data = snapshot.val();
-    callback(data);
-  });
+  onValue(
+    locationRef,
+    (snapshot) => callback(snapshot.val()),
+    onError,
+  );
 
   return () => off(locationRef);
+};
+
+export const clearSessionLocation = (sessionId) => {
+  if (!db || !sessionId) return Promise.resolve(false);
+  return remove(ref(db, 'locations/' + sessionId)).then(() => true).catch((err) => {
+    console.error('Firebase session cleanup failed:', err);
+    return false;
+  });
 };

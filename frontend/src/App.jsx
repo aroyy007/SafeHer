@@ -1,11 +1,13 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AppShell } from './pages/AppShell/AppShell';
 import { Landing } from './pages/Landing/Landing';
 import { Track } from './pages/Track/Track';
 import { Login } from './pages/Auth/Login';
 import { Signup } from './pages/Auth/Signup';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
+import { LanguageSwitcher } from './i18n/LanguageSwitcher';
 
 /**
  * App.jsx — the router.
@@ -26,8 +28,9 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
  */
 function App() {
   return (
-    <AuthProvider>
-      <Routes>
+    <LanguageProvider>
+      <AuthProvider>
+        <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
@@ -35,59 +38,34 @@ function App() {
         <Route path="/app/:tab" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
         <Route path="/track/:sessionId" element={<Track />} />
         <Route path="*" element={<NotFound />} />
-      </Routes>
-    </AuthProvider>
+        </Routes>
+      </AuthProvider>
+    </LanguageProvider>
   );
 }
 
 function ProtectedRoute({ children }) {
   const { user, isLoading } = useAuth();
+  const { t } = useLanguage();
   
-  if (isLoading) return <div className="flex-center" style={{ minHeight: '100dvh' }}>Loading...</div>;
+  if (isLoading) return <div className="route-loading" role="status"><span>{t('Loading your session…')}</span><LanguageSwitcher /></div>;
   if (!user) return <Navigate to="/login" replace />;
   
   return children;
 }
 
 function NotFound() {
+  const { t } = useLanguage();
   return (
-    <div
-      style={{
-        minHeight: '100dvh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'column',
-        gap: 'var(--space-3)',
-        padding: 'var(--space-6)',
-        textAlign: 'center',
-        backgroundColor: 'var(--color-bg-primary)',
-        color: 'var(--color-text-primary)',
-      }}
-    >
-      <div className="eyebrow">Error 404</div>
-      <h1
-        style={{
-          fontSize: 'clamp(3rem, 8vw, 5rem)',
-          fontFamily: 'var(--font-display)',
-          fontWeight: 400,
-          letterSpacing: '-0.03em',
-          color: 'var(--color-text-primary)',
-        }}
-      >
-        Not found.
-      </h1>
-      <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9375rem', maxWidth: '320px' }}>
-        The page you&rsquo;re looking for doesn&rsquo;t exist or has moved.
+    <main className="route-not-found">
+      <div className="eyebrow">{t('Error 404')}</div>
+      <h1>{t('Not found.')}</h1>
+      <p>
+        {t('The page you’re looking for doesn’t exist or has moved.')}
       </p>
-      <a
-        href="/"
-        className="btn btn-primary"
-        style={{ marginTop: 'var(--space-3)', minHeight: 40 }}
-      >
-        ← Back home
-      </a>
-    </div>
+      <LanguageSwitcher />
+      <Link to="/" className="btn btn-primary">{t('Back home')}</Link>
+    </main>
   );
 }
 

@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../i18n/LanguageContext';
+import { LanguageSwitcher } from '../../i18n/LanguageSwitcher';
 import { ShieldCheck, Loader2, ArrowRight, ChevronRight, Camera } from 'lucide-react';
 import {
   uploadProfilePhoto,
@@ -34,6 +36,7 @@ export function Signup() {
   const fileInputRef = useRef(null);
 
   const { signup } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   /* ----- Step 1: validate basic info ----- */
@@ -141,19 +144,18 @@ export function Signup() {
         </Link>
 
         <div className="auth__panel-body">
-          <div className="eyebrow">Get started</div>
+          <div className="eyebrow">{t('Get started')}</div>
           <h2 className="auth__panel-title">
-            Build your <em>trusted circle</em><br />before you need it.
+            {t('Build your')} <em>{t('trusted circle')}</em><br />{t('before you need it.')}
           </h2>
           <p className="auth__panel-text">
-            Add the people who should know when you&rsquo;re unsafe — family, friends, a coworker who walks
-            the same road home. Three contacts is enough. Twenty is better.
+            {t('Add the people you want to reach if you activate SOS. Set up their contact details before you need them.')}
           </p>
 
           <ul className="auth__panel-list">
-            <li><span className="auth__panel-dot" /> Email-based account (no NID, no SMS)</li>
-            <li><span className="auth__panel-dot" /> No app to install for your circle</li>
-            <li><span className="auth__panel-dot" /> Anonymous incident reports stay anonymous</li>
+            <li><span className="auth__panel-dot" /> {t('Email is required for your account')}</li>
+            <li><span className="auth__panel-dot" /> {t('Add contact email addresses for alert links')}</li>
+            <li><span className="auth__panel-dot" /> {t('Active location links expire after 24 hours')}</li>
           </ul>
         </div>
 
@@ -166,23 +168,26 @@ export function Signup() {
       {/* Right: form */}
       <main className="auth__main">
         <div className="auth__form-wrap">
-          <Link to="/" className="auth__home-link">← Back to home</Link>
+          <div className="auth__utility-row">
+            <Link to="/" className="auth__home-link">{t('← Back to home')}</Link>
+            <LanguageSwitcher />
+          </div>
 
           <header className="auth__form-head">
-            <h1 className="auth__title">Create account</h1>
+            <h1 className="auth__title">{t('Create account')}</h1>
             <p className="auth__sub">
-              {step === 1 && 'Step 1 of 2 — your details'}
-              {step === 2 && 'Step 2 of 2 — add a photo'}
+              {step === 1 && t('Step 1 of 2 — your details')}
+              {step === 2 && t('Step 2 of 2 — add a photo')}
             </p>
           </header>
 
-          {error && (<div className="auth__error" role="alert">{error}</div>)}
+          {error && (<div className="auth__error" role="alert">{t(error)}</div>)}
 
           {/* Step 1: basic info */}
           {step === 1 && (
             <form onSubmit={handleStep1} className="auth__form">
               <div className="auth__field">
-                <label htmlFor="name">Full name</label>
+                <label htmlFor="name">{t('Full name')}</label>
                 <input
                   id="name" type="text" required className="input-field"
                   value={formData.name}
@@ -193,51 +198,50 @@ export function Signup() {
 
               <div className="auth__field">
                 <label htmlFor="email">
-                  Email <span style={{ color: '#dc2626' }}>*</span>
+                  {t('Email')} <span style={{ color: '#dc2626' }}>*</span>
                 </label>
                 <input
                   id="email" type="email" required className="input-field"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   autoComplete="email"
-                  placeholder="you@example.com"
+                  placeholder={t('you@example.com')}
                 />
-                <small className="auth__hint" style={{ display: 'block', marginTop: 4, color: '#888' }}>
-                  Required — your emergency contacts receive SOS alerts by email, and we send
-                  you an account-recovery link if you ever get locked out.
+                <small className="auth__hint">
+                  {t('Required — your emergency contacts receive SOS alerts by email. We do not verify your email during signup.')}
                 </small>
               </div>
 
               <div className="auth__field">
-                <label htmlFor="phone">Phone (optional)</label>
+                <label htmlFor="phone">{t('Phone (optional)')}</label>
                 <input
                   id="phone" type="tel" className="input-field"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   autoComplete="tel"
-                  placeholder="01712 345 678"
+                  placeholder={t('01712 345 678')}
                 />
-                <small className="auth__hint" style={{ display: 'block', marginTop: 4, color: '#888' }}>
-                  Optional — used to personalize SOS alerts. Not verified at signup.
+                <small className="auth__hint">
+                  {t('Optional — used to personalize SOS alerts. Not verified at signup.')}
                 </small>
               </div>
 
               <div className="auth__field">
-                <label htmlFor="home_area">Home area / neighborhood</label>
+                <label htmlFor="home_area">{t('Home area / neighborhood')}</label>
                 <input
                   id="home_area" type="text" className="input-field"
                   value={formData.home_area}
                   onChange={(e) => setFormData({ ...formData, home_area: e.target.value })}
                   autoComplete="address-level2"
-                  placeholder="e.g. Halishahar, Agrabad"
+                  placeholder={t('e.g. Halishahar, Agrabad')}
                 />
-                <small className="auth__hint" style={{ display: 'block', marginTop: 4, color: '#888' }}>
-                  Used to center your map and personalize the chatbot — never verified, never shared.
+                <small className="auth__hint">
+                  {t('Used to center your map and personalize the chatbot — never verified, never shared.')}
                 </small>
               </div>
 
               <div className="auth__field">
-                <label htmlFor="password">Password</label>
+                <label htmlFor="password">{t('Password')}</label>
                 <input
                   id="password" type="password" required minLength={8} className="input-field"
                   value={formData.password}
@@ -251,7 +255,7 @@ export function Signup() {
                 className="btn btn-primary"
                 style={{ minHeight: 44, marginTop: 'var(--space-2)' }}
               >
-                Continue <ArrowRight size={16} />
+                {t('Continue')} <ArrowRight size={16} />
               </button>
             </form>
           )}
@@ -262,29 +266,28 @@ export function Signup() {
               <div className="auth__field" style={{ textAlign: 'center' }}>
                 <label
                   htmlFor="photo"
-                  style={{
-                    display: 'inline-block',
-                    width: 120,
-                    height: 120,
-                    borderRadius: '50%',
-                    background: photoPreview
-                      ? `url(${photoPreview}) center/cover no-repeat #f4f4f5`
-                      : '#f4f4f5',
-                    border: '2px dashed #ccc',
-                    cursor: 'pointer',
-                    lineHeight: '120px',
+                  className={`auth__photo-picker ${photoPreview ? 'has-photo' : ''}`}
+                  style={photoPreview ? { backgroundImage: `url(${photoPreview})` } : undefined}
+                  aria-label={t('Upload profile photo')}
+                  aria-describedby="photo-help"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      fileInputRef.current?.click();
+                    }
                   }}
-                  aria-label="Upload profile photo"
                 >
-                  {!photoPreview && <Camera size={28} style={{ verticalAlign: 'middle', color: '#888' }} />}
+                  {!photoPreview && <Camera size={28} aria-hidden="true" />}
                 </label>
                 <input
                   id="photo" type="file" accept="image/*"
                   ref={fileInputRef} onChange={handlePhotoChange}
                   style={{ display: 'none' }}
                 />
-                <p style={{ marginTop: 8, color: '#888', fontSize: 13 }}>
-                  Optional — your photo helps trusted contacts confirm it&rsquo;s really you during SOS.
+                <p id="photo-help" className="auth__photo-help">
+                  {t('Optional — your photo helps trusted contacts confirm it’s really you during SOS.')}
                 </p>
               </div>
 
@@ -295,9 +298,9 @@ export function Signup() {
                 style={{ minHeight: 44, marginTop: 'var(--space-2)' }}
               >
                 {isLoading ? (
-                  <><Loader2 className="animate-spin" size={16} /> Creating account…</>
+                  <><Loader2 className="animate-spin" size={16} /> {t('Creating account…')}</>
                 ) : (
-                  <>Create account <ArrowRight size={16} /></>
+                  <>{t('Create account')} <ArrowRight size={16} /></>
                 )}
               </button>
               <button
@@ -306,15 +309,15 @@ export function Signup() {
                 onClick={() => setStep(1)}
                 style={{ marginTop: 8, color: 'var(--color-text-muted)' }}
               >
-                ← Back
+                {t('← Back')}
               </button>
             </form>
           )}
 
           <p className="auth__alt">
-            Already have an account?{' '}
+            {t('Already have an account?')}{' '}
             <Link to="/login" className="auth__link">
-              Sign in <ChevronRight size={12} />
+              {t('Sign in')} <ChevronRight size={12} />
             </Link>
           </p>
         </div>

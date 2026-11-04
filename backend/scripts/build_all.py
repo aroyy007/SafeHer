@@ -6,7 +6,6 @@ doesn't pay the cost on every boot.
 
 Outputs (under backend/data/):
   - chittagong_walk.graphml  : scored walk graph (~25 MB)
-  - chittagong_incidents.geojson : curated hotspot map for the heatmap layer
   - safeher_local.db        : SQLite with incidents + circles (auto-created)
 
 Usage (from backend/):
@@ -14,7 +13,6 @@ Usage (from backend/):
 
 This wraps:
   - precompute/build_graph.py       (5-15 min — OSM download + KDE scoring)
-  - precompute/seed_incidents.py    (~10s — copies the hotspot GeoJSON)
   - precompute/build_knowledge_base.py  (~30s — seeds ChromaDB; usually auto on first boot)
 
 If a step fails it logs the error and continues, so partial progress
@@ -60,7 +58,6 @@ def main():
 
     results = {
         "graph": run("build_graph.py"),
-        "incidents": run("seed_incidents.py"),
         "knowledge_base": run("build_knowledge_base.py"),
     }
 

@@ -4,16 +4,19 @@ import {
   ChevronLeft, Phone, Mail, Heart, ChevronRight
 } from 'lucide-react';
 import { api } from '../../lib/api';
+import { useLanguage } from '../../i18n/LanguageContext';
 import '../../pages/AppShell/appshell.css';
 
 /**
  * Circles — Trusted Circles management page.
  *
  * Lets the user create named circles (e.g. "Family", "Friends",
- * "Coworkers"), add members (phone / email / other handle), and
+ * "Coworkers"), add members (email contacts receive SOS alerts; phone-only
+ * members are saved for future notification channels), and
  * remove either a circle or a single member.
  */
 export function Circles() {
+  const { t } = useLanguage();
   const [circles, setCircles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -46,7 +49,7 @@ export function Circles() {
   };
 
   const handleDeleteCircle = async (id) => {
-    if (!confirm('Delete this circle? Members will be removed.')) return;
+    if (!confirm(t('Delete this circle? Members will be removed.'))) return;
     try {
       await api.circles.delete(id);
       setCircles(prev => prev.filter(c => c.id !== id));
@@ -76,10 +79,10 @@ export function Circles() {
     <div className="appshell__scroll animate-fade-in">
       <div className="appshell__page-head">
         <div>
-          <div className="eyebrow">Circles</div>
-          <h2 className="appshell__page-title">Trusted Circles</h2>
+          <div className="eyebrow">{t('Circles')}</div>
+          <h2 className="appshell__page-title">{t('Trusted Circles')}</h2>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginTop: '0.375rem', lineHeight: 1.5 }}>
-            Groups of contacts who get notified when you activate SOS.
+            {t('Email contacts in these groups receive alerts when you activate SOS.')}
           </p>
         </div>
         {!showCreateForm && (
@@ -88,13 +91,13 @@ export function Circles() {
             onClick={() => setShowCreateForm(true)}
             className="btn btn-primary"
           >
-            <Plus size={14} /> New Circle
+            <Plus size={14} /> {t('New Circle')}
           </button>
         )}
       </div>
 
       {error && (
-        <div className="auth__error" role="alert">{error}</div>
+        <div className="auth__error" role="alert">{t(error)}</div>
       )}
 
       {showCreateForm && (
@@ -129,6 +132,7 @@ export function Circles() {
 /* ---------------- Sub-components ---------------- */
 
 function CreateCircleForm({ onCancel, onCreate }) {
+  const { t } = useLanguage();
   const [name, setName] = useState('');
   const [color, setColor] = useState('#4A6D47');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -155,8 +159,8 @@ function CreateCircleForm({ onCancel, onCreate }) {
   return (
     <form onSubmit={handleSubmit} className="appshell__card appshell__form">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-1)' }}>
-        <h4 className="appshell__form-title">New trusted circle</h4>
-        <button type="button" onClick={onCancel} aria-label="Cancel" className="appshell__icon-btn">
+      <h4 className="appshell__form-title">{t('New trusted circle')}</h4>
+        <button type="button" onClick={onCancel} aria-label={t('Cancel')} className="appshell__icon-btn">
           <X size={14} />
         </button>
       </div>
@@ -166,7 +170,7 @@ function CreateCircleForm({ onCancel, onCreate }) {
           autoFocus
           required
           maxLength={80}
-          placeholder="Circle name (e.g. Family, Friends, Coworkers)"
+          placeholder={t('Circle name (e.g. Family, Friends, Coworkers)')}
           className="input-field"
           value={name}
           onChange={e => setName(e.target.value)}
@@ -174,7 +178,7 @@ function CreateCircleForm({ onCancel, onCreate }) {
         />
         <div>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
-            Accent
+            {t('Accent')}
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             {PALETTE.map(c => (
@@ -182,7 +186,7 @@ function CreateCircleForm({ onCancel, onCreate }) {
                 key={c}
                 type="button"
                 onClick={() => setColor(c)}
-                aria-label={`Pick color ${c}`}
+                aria-label={t('Pick color {color}', { color: c })}
                 aria-pressed={color === c}
                 style={{
                   width: 28,
@@ -201,12 +205,12 @@ function CreateCircleForm({ onCancel, onCreate }) {
             ))}
           </div>
         </div>
-        {error && <div className="auth__error" style={{ marginBottom: 0 }}>{error}</div>}
+        {error && <div className="auth__error" style={{ marginBottom: 0 }}>{t(error)}</div>}
         <div className="appshell__form-actions">
           <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="animate-spin" size={14} /> : 'Create Circle'}
+            {isSubmitting ? <Loader2 className="animate-spin" size={14} /> : t('Create Circle')}
           </button>
-          <button type="button" onClick={onCancel} className="btn btn-ghost">Cancel</button>
+          <button type="button" onClick={onCancel} className="btn btn-ghost">{t('Cancel')}</button>
         </div>
       </div>
     </form>
@@ -214,6 +218,7 @@ function CreateCircleForm({ onCancel, onCreate }) {
 }
 
 function CircleRow({ circle, onOpen, onDelete }) {
+  const { t, language } = useLanguage();
   const memberCount = circle.member_count ?? 0;
   return (
     <div
@@ -222,7 +227,7 @@ function CircleRow({ circle, onOpen, onDelete }) {
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
-      aria-label={`Open ${circle.name} circle`}
+      aria-label={t('Open {name} circle', { name: circle.name })}
       style={{ cursor: 'pointer' }}
     >
       <div className="appshell__row-avatar" style={{ background: circle.color || 'var(--color-accent)', color: 'var(--color-text-on-accent)' }} aria-hidden="true">
@@ -230,12 +235,12 @@ function CircleRow({ circle, onOpen, onDelete }) {
       </div>
       <div className="appshell__row-info">
         <p className="appshell__row-name">{circle.name}</p>
-        <p className="appshell__row-meta">{memberCount} {memberCount === 1 ? 'member' : 'members'}</p>
+        <p className="appshell__row-meta">{new Intl.NumberFormat(language === 'bn' ? 'bn-BD' : 'en').format(memberCount)} {t(memberCount === 1 ? 'member' : 'members')}</p>
       </div>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        aria-label={`Delete ${circle.name}`}
+        aria-label={t('Delete {name}', { name: circle.name })}
         className="appshell__icon-btn"
       >
         <Trash2 size={14} />
@@ -246,6 +251,7 @@ function CircleRow({ circle, onOpen, onDelete }) {
 }
 
 function CircleDetail({ circle, onBack, onDelete, onUpdated }) {
+  const { t, language } = useLanguage();
   const [detail, setDetail] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -272,7 +278,7 @@ function CircleDetail({ circle, onBack, onDelete, onUpdated }) {
   };
 
   const handleRemoveMember = async (memberId) => {
-    if (!confirm('Remove this member from the circle?')) return;
+    if (!confirm(t('Remove this member from the circle?'))) return;
     try {
       await api.circles.removeMember(circle.id, memberId);
       await load();
@@ -300,7 +306,7 @@ function CircleDetail({ circle, onBack, onDelete, onUpdated }) {
           transition: 'color 150ms',
         }}
       >
-        <ChevronLeft size={14} /> All Circles
+        <ChevronLeft size={14} /> {t('All Circles')}
       </button>
 
       <div className="appshell__card appshell__card--user" style={{ marginBottom: 'var(--space-2)' }}>
@@ -310,13 +316,13 @@ function CircleDetail({ circle, onBack, onDelete, onUpdated }) {
         <div className="appshell__user-info">
           <h2 className="appshell__user-name">{circle.name}</h2>
           <p className="appshell__user-meta">
-            {detail?.members?.length ?? circle.member_count ?? 0} members
+            {new Intl.NumberFormat(language === 'bn' ? 'bn-BD' : 'en').format(detail?.members?.length ?? circle.member_count ?? 0)} {t('members')}
           </p>
         </div>
         <button
           type="button"
           onClick={onDelete}
-          aria-label="Delete circle"
+          aria-label={t('Delete circle')}
           className="appshell__icon-btn"
         >
           <Trash2 size={14} />
@@ -324,7 +330,7 @@ function CircleDetail({ circle, onBack, onDelete, onUpdated }) {
       </div>
 
       {error && (
-        <div className="auth__error" role="alert">{error}</div>
+        <div className="auth__error" role="alert">{t(error)}</div>
       )}
 
       {!showAdd && (
@@ -334,7 +340,7 @@ function CircleDetail({ circle, onBack, onDelete, onUpdated }) {
           className="btn btn-primary"
           style={{ minHeight: 44 }}
         >
-          <UserPlus size={14} /> Add member
+          <UserPlus size={14} /> {t('Add member')}
         </button>
       )}
 
@@ -360,7 +366,7 @@ function CircleDetail({ circle, onBack, onDelete, onUpdated }) {
         <div className="appshell__list">
           {(detail?.members ?? []).length === 0 ? (
             <p className="appshell__empty">
-              No members yet — add the people you trust to be alerted when you activate SOS.
+              {t('No members yet — add the people you trust to be alerted when you activate SOS.')}
             </p>
           ) : (
             (detail?.members ?? []).map(m => (
@@ -371,13 +377,14 @@ function CircleDetail({ circle, onBack, onDelete, onUpdated }) {
       )}
 
       <p className="appshell__hint">
-        Members of this circle will be alerted when you activate SOS from the SOS tab.
+          {t('Email addresses in this circle receive SOS alerts. Phone-only members are saved but are not notified by SMS or calls.')}
       </p>
     </div>
   );
 }
 
 function AddMemberForm({ onCancel, onAdd }) {
+  const { t } = useLanguage();
   const [name, setName] = useState('');
   const [contact, setContact] = useState('');
   const [relation, setRelation] = useState('Friend');
@@ -404,8 +411,8 @@ function AddMemberForm({ onCancel, onAdd }) {
   return (
     <form onSubmit={handleSubmit} className="appshell__card appshell__form">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-1)' }}>
-        <h4 className="appshell__form-title">New member</h4>
-        <button type="button" onClick={onCancel} aria-label="Cancel" className="appshell__icon-btn">
+        <h4 className="appshell__form-title">{t('New member')}</h4>
+        <button type="button" onClick={onCancel} aria-label={t('Cancel')} className="appshell__icon-btn">
           <X size={14} />
         </button>
       </div>
@@ -414,7 +421,7 @@ function AddMemberForm({ onCancel, onAdd }) {
           autoFocus
           required
           maxLength={80}
-          placeholder="Name"
+          placeholder={t('Name')}
           className="input-field"
           value={name}
           onChange={e => setName(e.target.value)}
@@ -423,7 +430,7 @@ function AddMemberForm({ onCancel, onAdd }) {
         <input
           required
           maxLength={120}
-          placeholder="Phone, email, or other contact"
+          placeholder={t('Email for SOS alerts (phone can be saved only)')}
           className="input-field"
           value={contact}
           onChange={e => setContact(e.target.value)}
@@ -435,14 +442,14 @@ function AddMemberForm({ onCancel, onAdd }) {
           onChange={e => setRelation(e.target.value)}
           disabled={isSubmitting}
         >
-          {RELATIONS.map(r => <option key={r} value={r}>{r}</option>)}
+          {RELATIONS.map(r => <option key={r} value={r}>{t(r)}</option>)}
         </select>
-        {error && <div className="auth__error" style={{ marginBottom: 0 }}>{error}</div>}
+        {error && <div className="auth__error" style={{ marginBottom: 0 }}>{t(error)}</div>}
         <div className="appshell__form-actions">
           <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="animate-spin" size={14} /> : 'Save'}
+            {isSubmitting ? <Loader2 className="animate-spin" size={14} /> : t('Save')}
           </button>
-          <button type="button" onClick={onCancel} className="btn btn-ghost">Cancel</button>
+          <button type="button" onClick={onCancel} className="btn btn-ghost">{t('Cancel')}</button>
         </div>
       </div>
     </form>
@@ -450,6 +457,7 @@ function AddMemberForm({ onCancel, onAdd }) {
 }
 
 function MemberRow({ member, onRemove }) {
+  const { t } = useLanguage();
   const isEmail = String(member.contact || '').includes('@');
   return (
     <div className="appshell__row">
@@ -461,14 +469,14 @@ function MemberRow({ member, onRemove }) {
         <p className="appshell__row-meta">{member.contact}</p>
         {member.relation && (
           <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.625rem', color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: '0.25rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-            <Heart size={9} /> {member.relation}
+            <Heart size={9} /> {t(member.relation)}
           </p>
         )}
       </div>
       <button
         type="button"
         onClick={onRemove}
-        aria-label={`Remove ${member.name}`}
+        aria-label={t('Remove {name}', { name: member.name })}
         className="appshell__icon-btn"
       >
         <Trash2 size={14} />
@@ -478,19 +486,20 @@ function MemberRow({ member, onRemove }) {
 }
 
 function EmptyState({ onCreate }) {
+  const { t } = useLanguage();
   return (
     <div className="appshell__card" style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-6)' }}>
       <div className="appshell__avatar" style={{ margin: '0 auto var(--space-4) auto' }} aria-hidden="true">
         <AlertCircle size={20} />
       </div>
       <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 400, letterSpacing: '-0.015em', color: 'var(--color-text-primary)', marginBottom: '0.375rem' }}>
-        No trusted circles yet
+        {t('No trusted circles yet')}
       </h3>
       <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9375rem', marginBottom: 'var(--space-6)', maxWidth: '300px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
-        Create your first circle to group people you trust — family, friends, or coworkers.
+        {t('Create your first circle to group people you trust — family, friends, or coworkers.')}
       </p>
       <button type="button" onClick={onCreate} className="btn btn-primary">
-        <Plus size={14} /> Create your first circle
+        <Plus size={14} /> {t('Create your first circle')}
       </button>
     </div>
   );

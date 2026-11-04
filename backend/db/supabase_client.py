@@ -14,10 +14,8 @@ There are TWO clients in production:
                          Use this on the backend for trusted writes
                          (insert SOS events, write user profiles, etc.).
 
-The service role key is read from SUPABASE_SERVICE_KEY in .env. If it is
-not set, get_supabase_admin() falls back to SUPABASE_KEY (which is what
-hackathon deployments were using before) and logs a warning so the team
-knows to fix the env.
+The service role key is read from SUPABASE_SERVICE_KEY in .env. Admin
+operations fail closed if that server-only key is missing.
 """
 
 import logging
@@ -46,8 +44,8 @@ def get_supabase():
 def get_supabase_admin():
     """Service-role client. Bypasses RLS. Backend only.
 
-    Reads SUPABASE_SERVICE_KEY first; if absent, falls back to SUPABASE_KEY
-    and warns. Set SUPABASE_SERVICE_KEY on Render for production.
+    Requires SUPABASE_SERVICE_KEY. The publishable/anon key cannot perform
+    trusted backend writes and must never be treated as an admin credential.
     """
     global _supabase_admin
     if _supabase_admin is None:
@@ -57,15 +55,9 @@ def get_supabase_admin():
         if not settings.SUPABASE_URL:
             raise ValueError("SUPABASE_URL must be set in .env")
 
-        key = (settings.SUPABASE_SERVICE_KEY or settings.SUPABASE_KEY or "").strip()
+        key = (settings.SUPABASE_SERVICE_KEY or "").strip()
         if not key:
-            raise ValueError("SUPABASE_SERVICE_KEY (or SUPABASE_KEY) must be set in .env")
-
-        if not settings.SUPABASE_SERVICE_KEY:
-            logger.warning(
-                "SUPABASE_SERVICE_KEY is not set — falling back to SUPABASE_KEY. "
-                "For backend writes, set SUPABASE_SERVICE_KEY in Render env vars."
-            )
+            raise ValueError("SUPABASE_SERVICE_KEY must be set for backend storage operations")
 
         _supabase_admin = create_client(settings.SUPABASE_URL, key)
     return _supabase_admin

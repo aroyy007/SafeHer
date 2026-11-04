@@ -14,6 +14,7 @@ returns 503 and the frontend should fall back to EmailJS.
 """
 
 import asyncio
+import html
 import logging
 import smtplib
 import ssl
@@ -62,7 +63,14 @@ def _build_message(
         f"If you can, contact them or call 999.\n"
     )
 
-    html = f"""
+    to_name_html = html_escape(to_name)
+    from_name_html = html_escape(from_name)
+    from_phone_html = html_escape(from_phone)
+    time_html = html_escape(time_str)
+    location_html = html_escape(location_address)
+    tracking_href = html_escape(tracking_link, quote=True)
+
+    html_body = f"""
     <!doctype html>
     <html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;
         background:#f4f4f5;padding:24px;color:#111;">
@@ -73,19 +81,19 @@ def _build_message(
           🚨 SafeHer Emergency Alert
         </div>
         <p style="margin:18px 0 6px 0;font-size:16px;">
-          Hi {to_name},</p>
+          Hi {to_name_html},</p>
         <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;">
-          <strong>{from_name}</strong> just activated SafeHer SOS at
-          <strong>{time_str}</strong>.
+          <strong>{from_name_html}</strong> just activated SafeHer SOS at
+          <strong>{time_html}</strong>.
         </p>
         <table cellpadding="6" style="font-size:14px;border-collapse:collapse;">
           <tr><td style="color:#666;">Phone</td>
-              <td><strong>{from_phone}</strong></td></tr>
+              <td><strong>{from_phone_html}</strong></td></tr>
           <tr><td style="color:#666;">Location</td>
-              <td>{location_address}</td></tr>
+              <td>{location_html}</td></tr>
         </table>
         <div style="margin:22px 0;text-align:center;">
-          <a href="{tracking_link}"
+          <a href="{tracking_href}"
              style="display:inline-block;background:#dc2626;color:#fff;
              padding:12px 22px;border-radius:8px;text-decoration:none;
              font-weight:600;font-size:15px;">
@@ -93,7 +101,7 @@ def _build_message(
           </a>
         </div>
         <p style="font-size:13px;color:#555;line-height:1.55;">
-          If you can, contact {from_name} now or call emergency services
+          If you can, contact {from_name_html} now or call emergency services
           (<strong>999</strong>).
         </p>
         <p style="font-size:12px;color:#999;margin-top:24px;">
@@ -108,7 +116,7 @@ def _build_message(
     msg["From"] = settings.SMTP_FROM
     msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
     msg.set_content(plain)
-    msg.add_alternative(html, subtype="html")
+    msg.add_alternative(html_body, subtype="html")
     return msg
 
 
@@ -170,10 +178,10 @@ async def send_sos_emails(
         )
 
     sent = 0
-    failed: list[dict] = []
+    failed = 0
 
     async def _one(rec: dict) -> None:
-        nonlocal sent
+        nonlocal sent, failed
         email = (rec.get("email") or "").strip()
         if not email:
             return
@@ -189,10 +197,15 @@ async def send_sos_emails(
                 tracking_link,
             )
             sent += 1
-            logger.info(f"SOS email sent → {email}")
-        except Exception as e:
-            logger.error(f"SOS email FAILED → {email}: {e}")
-            failed.append({"email": email, "error": str(e)})
+            logger.info("SOS email sent")
+        except Exception as exc:
+            failed += 1
+            logger.error("SOS email failed (%s)", type(exc).__name__)
 
     await asyncio.gather(*(_one(r) for r in recipients), return_exceptions=True)
     return {"sent": sent, "failed": failed}
+
+
+def html_escape(value: str, quote: bool = False) -> str:
+    """Escape untrusted email-template values for HTML text/attributes."""
+    return html.escape(value or "", quote=quote)
